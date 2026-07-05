@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="760" viewBox="0 0 1280 760" role="img" aria-labelledby="title desc">
+  <title id="title">MemoryAgent architecture on Qwen Cloud and Alibaba Cloud</title>
+  <desc id="desc">Architecture diagram showing a user client connecting to a MemoryAgent backend on Alibaba Cloud, which uses Qwen Cloud, MemoryAgent core services, embeddings, and SQLite persistent memory.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#2563eb" />
+    </marker>
+    <style>
+      .bg { fill: #f8fafc; }
+      .box { fill: #ffffff; stroke: #0f172a; stroke-width: 2; rx: 14; }
+      .cloud { fill: #eff6ff; stroke: #2563eb; stroke-width: 2; rx: 18; }
+      .core { fill: #ecfdf5; stroke: #059669; stroke-width: 2; rx: 14; }
+      .db { fill: #fff7ed; stroke: #ea580c; stroke-width: 2; }
+      .title { font: 700 24px Arial, sans-serif; fill: #0f172a; }
+      .label { font: 700 17px Arial, sans-serif; fill: #0f172a; }
+      .small { font: 14px Arial, sans-serif; fill: #334155; }
+      .arrow { stroke: #2563eb; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .subarrow { stroke: #059669; stroke-width: 2.5; fill: none; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1280" height="760" />
+  <text class="title" x="40" y="48">MemoryAgent System Architecture — Track 1: MemoryAgent</text>
+  <text class="small" x="40" y="76">Persistent cross-session memory for Qwen Cloud agents, deployed as a backend on Alibaba Cloud.</text>
+
+  <rect class="box" x="40" y="140" width="220" height="120" />
+  <text class="label" x="70" y="178">User / Judge</text>
+  <text class="small" x="70" y="207">CLI, MCP client,</text>
+  <text class="small" x="70" y="229">or frontend caller</text>
+
+  <rect class="cloud" x="340" y="120" width="300" height="160" />
+  <text class="label" x="380" y="158">Alibaba Cloud Backend</text>
+  <text class="small" x="380" y="188">Function Compute or ECS</text>
+  <text class="small" x="380" y="212">Runs MemoryAgent API</text>
+  <text class="small" x="380" y="236">Deployment proof script verifies runtime</text>
+
+  <rect class="cloud" x="740" y="120" width="300" height="160" />
+  <text class="label" x="790" y="158">Qwen Cloud</text>
+  <text class="small" x="790" y="188">DashScope OpenAI-compatible</text>
+  <text class="small" x="790" y="212">chat completions API</text>
+  <text class="small" x="790" y="236">Model: qwen-plus</text>
+
+  <rect class="core" x="320" y="360" width="340" height="240" />
+  <text class="label" x="375" y="398">MemoryAgent Core</text>
+  <text class="small" x="365" y="430">Orchestrator</text>
+  <text class="small" x="365" y="455">Preference and fact extraction</text>
+  <text class="small" x="365" y="480">Semantic retrieval and MMR</text>
+  <text class="small" x="365" y="505">Forgetting curve and reinforcement</text>
+  <text class="small" x="365" y="530">Context packing for Qwen prompt</text>
+
+  <rect class="box" x="760" y="370" width="250" height="100" />
+  <text class="label" x="805" y="408">Embeddings</text>
+  <text class="small" x="805" y="438">sentence-transformers</text>
+
+  <path class="db" d="M780 555 C780 530, 990 530, 990 555 L990 650 C990 675, 780 675, 780 650 Z" />
+  <ellipse class="db" cx="885" cy="555" rx="105" ry="25" />
+  <text class="label" x="825" y="595">SQLite DB</text>
+  <text class="small" x="825" y="625">memories, embeddings,</text>
+  <text class="small" x="825" y="647">tags, sessions</text>
+
+  <rect class="box" x="1080" y="370" width="160" height="100" />
+  <text class="label" x="1115" y="408">MCP</text>
+  <text class="small" x="1100" y="438">perceive, search,</text>
+  <text class="small" x="1100" y="460">store, forget</text>
+
+  <path class="arrow" d="M260 200 L340 200" />
+  <text class="small" x="275" y="188">request</text>
+
+  <path class="arrow" d="M640 200 L740 200" />
+  <text class="small" x="660" y="188">memory context + prompt</text>
+
+  <path class="arrow" d="M740 245 L640 245" />
+  <text class="small" x="660" y="270">model response</text>
+
+  <path class="arrow" d="M490 280 L490 360" />
+  <text class="small" x="505" y="325">internal call</text>
+
+  <path class="subarrow" d="M660 435 L760 420" />
+  <text class="small" x="675" y="410">encode/search</text>
+
+  <path class="subarrow" d="M660 535 L780 605" />
+  <text class="small" x="682" y="580">persist/retrieve</text>
+
+  <path class="subarrow" d="M1010 420 L1080 420" />
+  <text class="small" x="1018" y="405">tools</text>
+
+  <path class="arrow" d="M340 245 L260 245" />
+  <text class="small" x="270" y="270">answer</text>
+
+  <rect x="40" y="650" width="560" height="70" fill="#e2e8f0" stroke="#475569" stroke-width="1.5" rx="10" />
+  <text class="small" x="60" y="680">Key behavior: store durable memories, retrieve critical context, reinforce useful recall,</text>
+  <text class="small" x="60" y="704">archive stale memories, and keep Qwen Cloud prompts within limited context windows.</text>
+</svg>

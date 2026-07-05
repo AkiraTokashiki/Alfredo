@@ -1,0 +1,3 @@
+include src/memory_agent/py.typed
+recursive-include tests *.py
+recursive-include examples *.py
