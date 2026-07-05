@@ -80,15 +80,15 @@ python -m memory_agent chat
 ```
 
 ```
-  Tu > Me gusta programar en Python
-  [+] preference: El usuario prefiere: programar en python
+  You > I like programming in Python
+  [+] preference: The user prefers: programming in python
 
-  Tu > Que lenguaje me gusta?
+  You > What language do I like?
   ─────────────────────────────────────────
-  [Recuerdos recuperados]:
-    1. [preference] (importancia=0.7, fuerza=1.00) El usuario prefiere: programar en python
+  [Retrieved memories]:
+    1. [preference] (importance=0.7, strength=1.00) The user prefers: programming in python
   ─────────────────────────────────────────
-  Recorde que el usuario prefiere: programar en python...
+  I remembered that the user prefers: programming in python...
 ```
 
 ### 4. Integrate with Hermes (MCP)
