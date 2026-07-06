@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 
 from memory_agent.agent.orchestrator import MemoryAgent
+from memory_agent.core.paths import resolve_memory_home
 from memory_agent.models import MemoryRecord
 
 
-DB_PATH = Path("hackathon_demo.db")
+DB_PATH = resolve_memory_home() / "hackathon_demo.db"
 
 
 def print_turn(title: str, result: dict) -> None:

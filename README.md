@@ -67,6 +67,30 @@ pip install -e .
 pip install -e ".[all]"     # with MCP + LLM support
 ```
 
+### Native memory vault
+
+By default, Alfredo stores runtime memory in a native SQLite vault instead of
+the current working directory.
+
+Development checkout default:
+
+```text
+.alfredo/memory_agent.db
+```
+
+Override with:
+
+```bash
+set ALFREDO_HOME=E:\code\alfredo\.alfredo   # Windows CMD
+export ALFREDO_HOME="$PWD/.alfredo"          # Linux/macOS
+```
+
+You can still pass an explicit DB path:
+
+```bash
+python -m memory_agent --db path/to/memory_agent.db chat
+```
+
 ### 2. Run the demo
 
 ```bash

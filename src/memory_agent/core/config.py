@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
+from memory_agent.core.paths import default_memory_db_path
+
 
 @dataclass
 class ForgettingConfig:
@@ -108,7 +110,7 @@ class EmbeddingConfig:
 class MemoryAgentConfig:
     """Top-level configuration."""
 
-    db_path: str = "memory_agent.db"
+    db_path: str = field(default_factory=lambda: str(default_memory_db_path()))
 
     memory_types: list[str] = field(
         default_factory=lambda: ["episodic", "semantic", "procedural", "preference"]

@@ -29,13 +29,11 @@ def cli(ctx: click.Context, db: str | None, model: str | None) -> None:
     """
     ctx.ensure_object(dict)
 
-    # Resolve db path
+    config = MemoryAgentConfig.default()
     if db:
         db_path = Path(db).resolve()
     else:
-        db_path = Path.cwd() / "memory_agent.db"
-
-    config = MemoryAgentConfig.default()
+        db_path = Path(config.db_path).expanduser().resolve()
     if model:
         config.embedding.model_name = model
 
