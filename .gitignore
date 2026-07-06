@@ -34,3 +34,5 @@ Thumbs.db
 
 # Generated local artifacts
 *.log
+
+.worktrees/
