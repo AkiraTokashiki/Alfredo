@@ -239,7 +239,7 @@ pytest tests/ -v
 | **DeepSeek / OpenAI / Anthropic** | `python -m memory_agent llm --provider deepseek` |
 | **Custom Python** | `from memory_agent import MemoryAgent` |
 
-See [INTEGRACION.md](./INTEGRACION.md) for full details.
+See [INTEGRATION.md](./INTEGRATION.md) for full details.
 
 ---
 

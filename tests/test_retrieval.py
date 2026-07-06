@@ -60,27 +60,27 @@ def engine(store: MemoryStore, embeddings: EmbeddingEngine) -> RetrievalEngine:
 
 class TestRetrievalEngine:
     def test_empty_store_returns_empty(self, engine: RetrievalEngine):
-        results = engine.retrieve("cualquier cosa")
+        results = engine.retrieve("anything")
         assert results == []
 
     def test_semantic_retrieval(self, engine: RetrievalEngine, store: MemoryStore):
         _seed(store, [
-            "Me gusta programar en Python",
-            "El clima esta soleado hoy",
-            "Python es mi lenguaje favorito",
+            "I like programming in Python",
+            "The weather is sunny today",
+            "Python is my favorite language",
         ])
 
-        results = engine.retrieve("lenguaje de programacion Python")
+        results = engine.retrieve("Python programming language")
         assert len(results) >= 1
         assert "Python" in results[0].memory.content
 
     def test_importance_boosts_score(self, store: MemoryStore, embeddings: EmbeddingEngine):
         """More important memories should rank higher with similar content."""
-        _seed(store, ["Me gusta el cafe"], importance=0.3)
+        _seed(store, ["I like coffee"], importance=0.3)
         # Add same text with high importance using same vector
         emb = _get_emb()
-        vec = emb.encode("Me gusta el cafe")
-        mid = store.add_memory(MemoryRecord(content="Me gusta el cafe", importance=0.9))
+        vec = emb.encode("I like coffee")
+        mid = store.add_memory(MemoryRecord(content="I like coffee", importance=0.9))
         store.save_embedding(mid, vec, emb.model_name)
 
         engine = RetrievalEngine(store, embeddings)
@@ -89,8 +89,8 @@ class TestRetrievalEngine:
         assert results[0].memory.importance == 0.9
 
     def test_memory_type_filter(self, store: MemoryStore, embeddings: EmbeddingEngine):
-        _seed(store, ["Python es genial"], memory_type="semantic")
-        _seed(store, ["El usuario dijo que usa VS Code"], memory_type="episodic")
+        _seed(store, ["Python is great"], memory_type="semantic")
+        _seed(store, ["The user said they use VS Code"], memory_type="episodic")
         engine = RetrievalEngine(store, embeddings)
 
         eps = engine.retrieve("codigo", memory_type="episodic")

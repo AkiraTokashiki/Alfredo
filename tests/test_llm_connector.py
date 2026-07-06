@@ -12,7 +12,7 @@ class FakeResponse:
         return None
 
     def json(self) -> dict:
-        return {"choices": [{"message": {"content": "respuesta qwen"}}]}
+        return {"choices": [{"message": {"content": "qwen response"}}]}
 
 
 class RecordingHttpClient:
@@ -52,7 +52,7 @@ class TestQwenCloudProvider:
             original_http.close()
             connector.close()
 
-        assert response == "respuesta qwen"
+        assert response == "qwen response"
         assert http.requests == [
             {
                 "url": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
@@ -68,3 +68,30 @@ class TestQwenCloudProvider:
                 },
             }
         ]
+
+    def test_system_prompt_requires_english_responses(self):
+        from memory_agent.integrations.llm_connector import SYSTEM_PROMPT
+
+        assert "Respond in English" in SYSTEM_PROMPT
+        assert "same language as the user" not in SYSTEM_PROMPT.lower()
+        assert "[MEMORIES]" in SYSTEM_PROMPT
+
+    def test_memory_context_uses_english_labels(self, tmp_path: Path):
+        connector = LLMConnector(provider="qwencloud", db_path=tmp_path / "memory.db")
+        original_http = connector.http
+        try:
+            connector.agent.store_memory(
+                __import__("memory_agent.models", fromlist=["MemoryRecord"]).MemoryRecord(
+                    content="The user prefers: python",
+                    memory_type="preference",
+                    importance=0.7,
+                )
+            )
+            context = connector._build_memory_context("python")
+        finally:
+            original_http.close()
+            connector.close()
+
+        assert "[MEMORIES]:" in context
+        assert "[/MEMORIES]" in context
+        assert "RECUERDOS" not in context

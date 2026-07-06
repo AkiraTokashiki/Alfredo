@@ -30,7 +30,7 @@ _FORGET_PATTERNS: list[str] = [
 
 def _topic_from_content(content: str) -> str:
     topic = content.lower().strip()
-    topic = re.sub(r"^(el usuario prefiere:|al usuario no le gusta:|hecho:)\s*", "", topic)
+    topic = re.sub(r"^(the user prefers:|the user does not like:|the user usually:|fact:)\s*", "", topic)
     topic = re.sub(r"[^a-z0-9áéíóúñü\s]+", "", topic)
     return " ".join(topic.split())
 
@@ -61,8 +61,8 @@ def extract_preferences(text: str) -> list[tuple[str, str, float]]:
             if not content or len(content) < 5:
                 continue
 
-            # Detect negative preferences ("no me gusta X")
-            is_negative = bool(re.search(r"no\s+me\s+(gusta|encanta|prefiero)", text_lower))
+            # Detect negative preferences ("no me gusta X", "I do not like X").
+            is_negative = bool(re.search(r"(no\s+me\s+(gusta|encanta|prefiero)|(?:don't|do\s+not)\s+like|hate|dislike|disgusta|odia?)", text_lower))
 
             # Higher importance for strong preferences
             importance = 0.7
@@ -71,13 +71,13 @@ def extract_preferences(text: str) -> list[tuple[str, str, float]]:
             if is_negative or any(word in text_lower for word in ("odio", "hate", "disgusta")):
                 importance = 0.6
 
-            # Build a natural-sounding memory
+            # Build English memory content even when the source input is not English.
             if is_negative:
-                memory_text = f"Al usuario no le gusta: {content}"
+                memory_text = f"The user does not like: {content}"
             else:
-                memory_text = f"El usuario prefiere: {content}"
+                memory_text = f"The user prefers: {content}"
             if mem_type == "habit" and not is_negative:
-                memory_text = f"El usuario usualmente: {content}"
+                memory_text = f"The user usually: {content}"
 
             results.append((memory_text, mem_type, importance))
 
@@ -102,7 +102,7 @@ def extract_facts(text: str) -> list[tuple[str, str, float]]:
             content = match.strip().rstrip(".,!?")
             if not content or len(content) < 5:
                 continue
-            results.append((f"Hecho: {content}", mem_type, importance))
+            results.append((f"Fact: {content}", mem_type, importance))
     return results
 
 
@@ -114,7 +114,7 @@ def extract_from_input(text: str) -> list[MemoryRecord]:
     memories: list[MemoryRecord] = []
 
     for content, mem_type, importance in extract_preferences(text):
-        polarity = "negative" if "no le gusta" in content.lower() else "positive"
+        polarity = "negative" if "does not like" in content.lower() else "positive"
         memories.append(MemoryRecord(
             content=content,
             memory_type=mem_type,
@@ -161,7 +161,6 @@ def should_remember(interaction: str, response: str) -> bool:
 
 def summarize_interaction(user_input: str, agent_response: str) -> str:
     """Create a concise episodic memory from an interaction."""
-    # Simple truncation-based summary
     input_preview = user_input[:100].strip()
     response_preview = agent_response[:80].strip()
-    return f"Usuario: {input_preview} | Respuesta: {response_preview}"
+    return f"User: {input_preview} | Response: {response_preview}"

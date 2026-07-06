@@ -9,7 +9,7 @@ from memory_agent.agent.orchestrator import MemoryAgent
 
 def main():
     print("=" * 60)
-    print("MemoryAgent — Demo Basico")
+    print("MemoryAgent — Basic Demo")
     print("=" * 60)
 
     # Use temp db so we start clean
@@ -17,48 +17,48 @@ def main():
         db_path = f.name
 
     agent = MemoryAgent(db_path=db_path)
-    agent.init_session("demo-basico")
+    agent.init_session("basic-demo")
 
     interactions = [
-        "Hola! Me llamo Manija",
-        "Me gusta programar en Python",
-        "Mi framework favorito es Next.js",
-        "Trabajo como developer de Android",
-        "Que sabes de mi?",
-        "Cual es mi lenguaje favorito?",
-        "Que framework me gusta?",
-        "Donde trabajo?",
+        "Hi! My name is Manija",
+        "I like programming in Python",
+        "My favorite framework is Next.js",
+        "I work as an Android developer",
+        "What do you know about me?",
+        "What is my favorite language?",
+        "What framework do I like?",
+        "Where do I work?",
     ]
 
     for user_input in interactions:
         print(f"\n{'─' * 50}")
-        print(f"  Tu: {user_input}")
+        print(f"  You: {user_input}")
 
         result = agent.perceive(user_input)
 
         # Show extracted memories
         if result["new_memories"]:
-            print(f"  [{len(result['new_memories'])} nuevos recuerdos]")
+            print(f"  [{len(result['new_memories'])} new memories]")
 
         # Show recollections
         if result["recollections"]:
-            print(f"  Recuerdos recuperados ({len(result['recollections'])}):")
+            print(f"  Retrieved memories ({len(result['recollections'])}):")
             for r in result["recollections"][:3]:
                 print(f"    [{r.memory.memory_type}] {r.memory.content[:60]}")
 
         if result["archived"]:
-            print(f"  [{result['archived']} recuerdos archivados]")
+            print(f"  [{result['archived']} archived memories]")
 
     # Final stats
     print(f"\n{'=' * 60}")
-    print("Estadisticas finales:")
+    print("Final statistics:")
     stats = agent.get_stats()
     for key, val in stats.items():
         print(f"  {key}: {val}")
 
     agent.close()
     Path(db_path).unlink(missing_ok=True)
-    print(f"\nDemo completada.")
+    print("\nDemo complete.")
 
 
 if __name__ == "__main__":

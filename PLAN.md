@@ -41,7 +41,7 @@ E:\CODE\MemoryAgent\
 │   ├── demo_basic.py
 │   └── demo_multi_session.py
 ├── PLAN.md
-├── HISTORIAL.md
+├── HISTORY.md
 ├── requirements.txt
 ├── setup.py / pyproject.toml
 └── README.md

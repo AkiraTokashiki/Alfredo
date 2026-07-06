@@ -24,7 +24,7 @@ def test_consolidation_config_exposes_similarity_thresholds():
 
 
 def test_search_result_estimated_chars_is_memory_content_length():
-    memory = MemoryRecord(content="El usuario prefiere: Rust", memory_type="preference")
+    memory = MemoryRecord(content="The user prefers: Rust", memory_type="preference")
     result = SearchResult(memory=memory, score=0.9)
 
     assert result.estimated_chars == len(memory.content)

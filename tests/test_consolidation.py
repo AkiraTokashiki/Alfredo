@@ -61,13 +61,13 @@ class FakeSimilarity:
 
 def test_duplicate_preference_reinforces_existing(store: MemoryStore):
     existing = MemoryRecord(
-        content="El usuario prefiere: Python",
+        content="The user prefers: Python",
         memory_type="preference",
         strength=0.4,
     )
     existing_id = store.add_memory(existing)
     candidate = MemoryRecord(
-        content="El usuario prefiere: programar en Python",
+        content="The user prefers: programming in Python",
         memory_type="preference",
     )
     similarity = FakeSimilarity({(existing.content, candidate.content): 0.93})
@@ -85,13 +85,13 @@ def test_duplicate_preference_reinforces_existing(store: MemoryStore):
 
 def test_conflicting_preference_supersedes_existing(store: MemoryStore):
     old = MemoryRecord(
-        content="El usuario prefiere: Python",
+        content="The user prefers: Python",
         memory_type="preference",
         metadata={"topic": "python", "polarity": "positive"},
     )
     old_id = store.add_memory(old)
     new = MemoryRecord(
-        content="Al usuario no le gusta: Python",
+        content="The user does not like: Python",
         memory_type="preference",
         metadata={"topic": "python", "polarity": "negative"},
     )
@@ -113,9 +113,9 @@ def test_conflicting_preference_supersedes_existing(store: MemoryStore):
 
 def test_explicit_forget_archives_matching_memory(store: MemoryStore):
     memory_id = store.add_memory(
-        MemoryRecord(content="El usuario prefiere: Python", memory_type="preference")
+        MemoryRecord(content="The user prefers: Python", memory_type="preference")
     )
-    similarity = FakeSimilarity({("forget python", "El usuario prefiere: Python"): 0.8})
+    similarity = FakeSimilarity({("forget python", "The user prefers: Python"): 0.8})
     consolidator = MemoryConsolidator(store, similarity, ConsolidationConfig())
 
     archived_count = consolidator.forget_matching("forget python")

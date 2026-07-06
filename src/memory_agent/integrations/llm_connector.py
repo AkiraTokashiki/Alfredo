@@ -61,23 +61,23 @@ PROVIDERS: dict[str, dict[str, str]] = {
     },
 }
 
-SYSTEM_PROMPT = """Eres MemoryAgent, un asistente con memoria persistente.
+SYSTEM_PROMPT = """You are MemoryAgent, a helpful assistant with persistent memory.
 
-Tienes acceso a un sistema de memoria que:
-1. RECUERDA preferencias, hechos, y experiencias de conversaciones pasadas
-2. OLVIDA gradualmente información no relevante (curva de Ebbinghaus)
-3. RECUPERA recuerdos relevantes usando búsqueda semántica
+You have access to a memory system that:
+1. REMEMBERS preferences, facts, and experiences from past conversations
+2. GRADUALLY FORGETS irrelevant information using an Ebbinghaus-style decay curve
+3. RETRIEVES relevant memories using semantic search
 
-Cuando respondas:
-- Usa la memoria contextual que se te provee en cada turno
-- Si el usuario menciona una preferencia, confírmala antes de guardarla
-- Si no estás seguro de algo, sé honesto
-- Responde en el mismo idioma que el usuario
+When you respond:
+- Use the contextual memory provided on each turn
+- If the user mentions a preference, acknowledge it before it is stored
+- Be honest when you are uncertain
+- Respond in English
 
-Formato de la memoria contextual:
-[RECUERDOS]:
-  - [tipo] contenido (score: X.XX)
-[/RECUERDOS]"""
+Contextual memory format:
+[MEMORIES]:
+  - [type] content (score: X.XX)
+[/MEMORIES]"""
 
 
 class LLMConnector:
@@ -127,7 +127,7 @@ class LLMConnector:
         if not results:
             return ""
 
-        lines = ["[RECUERDOS]:"]
+        lines = ["[MEMORIES]:"]
         for r in results:
             mem = r.memory
             type_icon = {"episodic": "📝", "semantic": "💡", "preference": "❤️", "procedural": "🔧"}
@@ -135,7 +135,7 @@ class LLMConnector:
             lines.append(
                 f"  {icon} [{mem.memory_type}] {mem.content} (score: {r.score:.2f})"
             )
-        lines.append("[/RECUERDOS]")
+        lines.append("[/MEMORIES]")
         return "\n".join(lines)
 
     # ------------------------------------------------------------------
@@ -232,14 +232,14 @@ def run_interactive(
     print(f"\n  MemoryAgent + {provider.upper()} ({connector.model})")
     print(f"  Base: {connector.base_url}")
     print(f"  DB:   {connector.agent.db_path}")
-    print(f"  Modelo: {connector.model}")
-    print(f"  Comandos: /stats, /search <q>, /memories, /quit")
+    print(f"  Model: {connector.model}")
+    print(f"  Commands: /stats, /search <q>, /memories, /quit")
     print("=" * 55)
 
     try:
         while True:
             try:
-                user_input = input("\n  Tu > ").strip()
+                user_input = input("\n  You > ").strip()
             except (EOFError, KeyboardInterrupt):
                 print()
                 break
@@ -272,11 +272,11 @@ def run_interactive(
                         print(f"  #{m.id} [{m.memory_type}] {m.content[:70]}")
                     continue
                 else:
-                    print(f"  Comandos: /stats, /search <q>, /memories, /quit")
+                    print(f"  Commands: /stats, /search <q>, /memories, /quit")
                     continue
 
             # Process turn
-            print(f"  [pensando...]", end="", flush=True)
+            print("  [thinking...]", end="", flush=True)
             try:
                 response = connector.turn(user_input)
                 print(f"\r", end="", flush=True)
@@ -286,12 +286,12 @@ def run_interactive(
 
             # Show memory stats line
             stats = connector.agent.get_stats()
-            print(f"  [memorias: {stats['total_active']} activas | "
-                  f"{stats['session_turns']} turnos]")
+            print(f"  [memories: {stats['total_active']} active | "
+                  f"{stats['session_turns']} turns]")
 
     finally:
         connector.close()
-        print("\n  Sesion terminada.\n")
+        print("\n  Session ended.\n")
 
 
 if __name__ == "__main__":

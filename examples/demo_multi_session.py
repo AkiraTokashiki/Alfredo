@@ -9,7 +9,7 @@ from memory_agent.agent.orchestrator import MemoryAgent
 
 def main():
     print("=" * 60)
-    print("MemoryAgent — Demo Multi-Sesion")
+    print("MemoryAgent — Multi-Session Demo")
     print("=" * 60)
 
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
@@ -18,84 +18,84 @@ def main():
     agent = MemoryAgent(db_path=db_path)
 
     # ========================
-    # Session 1: aprender preferencias
+    # Session 1: learn preferences
     # ========================
-    print(f"\n>>> SESION 1: Aprendiendo preferencias")
-    agent.init_session("sesion-1")
+    print("\n>>> SESSION 1: Learning preferences")
+    agent.init_session("session-1")
 
     session_1_inputs = [
-        "Hola! Me encanta el cafe",
-        "Uso Linux para trabajar",
-        "Mi editor favorito es VS Code",
-        "Prefiero la musica electronica",
+        "Hi! I love coffee",
+        "I use Linux for work",
+        "My favorite editor is VS Code",
+        "I prefer electronic music",
     ]
 
     for inp in session_1_inputs:
         result = agent.perceive(inp)
-        print(f"  Tu: {inp}")
-        print(f"    → {len(result['new_memories'])} recuerdos guardados")
+        print(f"  You: {inp}")
+        print(f"    → {len(result['new_memories'])} memories stored")
 
-    print(f"\n  Total despues de sesion 1: {agent.state.total_memories} recuerdos")
+    print(f"\n  Total after session 1: {agent.state.total_memories} memories")
     agent.end_session()
 
     # ========================
-    # Session 2: verificar que recuerda
+    # Session 2: verify persistent recall
     # ========================
-    print(f"\n>>> SESION 2: Recordando preferencias")
-    agent.init_session("sesion-2")
+    print("\n>>> SESSION 2: Recalling preferences")
+    agent.init_session("session-2")
 
     session_2_inputs = [
-        "Que sabes de mi?",
-        "Que editor uso?",
-        "Que sistema operativo prefiero?",
-        "Que tipo de musica me gusta?",
+        "What do you know about me?",
+        "What editor do I use?",
+        "What operating system do I prefer?",
+        "What type of music do I like?",
     ]
 
     for inp in session_2_inputs:
         result = agent.perceive(inp)
-        print(f"  Tu: {inp}")
+        print(f"  You: {inp}")
         print(f"    Recollections: {len(result['recollections'])}")
         for r in result["recollections"][:2]:
             print(f"      → [{r.memory.memory_type}] {r.memory.content[:70]}")
         print(f"    Score: {r.score:.3f}" if result['recollections'] else "")
 
-    print(f"\n  Total despues de sesion 2: {agent.state.total_memories} recuerdos")
+    print(f"\n  Total after session 2: {agent.state.total_memories} memories")
     agent.end_session()
 
     # ========================
-    # Session 3: el olvido
+    # Session 3: forgetting
     # ========================
-    print(f"\n>>> SESION 3: Probando el olvido (simulado)")
-    agent.init_session("sesion-3")
+    print("\n>>> SESSION 3: Testing forgetting (simulated)")
+    agent.init_session("session-3")
 
     # Add a low-importance memory
-    agent.perceive("El clima es lindo hoy")
+    agent.perceive("The weather is nice today")
 
     # Print stats to see decay lifespans
     stats = agent.get_stats()
-    print(f"\n  Lifespans de decay:")
+    print("\n  Decay lifespans:")
     for level, days in stats["decay_lifespans_days"].items():
         print(f"    {level}: ~{days} days")
 
-    print(f"\n  Memorias activas: {stats['total_active']}")
-    print(f"  Por tipo: {stats['type_distribution']}")
+    print(f"\n  Active memories: {stats['total_active']}")
+    print(f"  By type: {stats['type_distribution']}")
 
     agent.end_session()
 
     # ========================
-    # Resumen final
+    # Final summary
     # ========================
     print(f"\n{'=' * 60}")
-    print("RESUMEN:")
-    print(f"  Total memorias al final: {agent.state.total_memories}")
-    print(f"  El agente recordo preferencias entre sesiones ✓")
-    print(f"  El olvido usa curva de Ebbinghaus con importancia ✓")
-    print(f"  Los embeddings semanticos permiten busqueda por similitud ✓")
-    print(f"  MMR diversifica resultados en retrieval ✓")
+    print("SUMMARY:")
+    print(f"  Final memory count: {agent.state.total_memories}")
+    print("  The agent recalled preferences across sessions ✓")
+    print("  Forgetting uses an importance-weighted Ebbinghaus curve ✓")
+    print("  Semantic embeddings support similarity search ✓")
+    print("  MMR diversifies retrieval results ✓")
 
     agent.close()
     Path(db_path).unlink(missing_ok=True)
-    print(f"\nDemo multi-sesion completada.")
+    print("\nMulti-session demo complete.")
 
 
 if __name__ == "__main__":

@@ -60,11 +60,12 @@ class EmbeddingSimilarity:
     def _normalize(self, text: str) -> str:
         lowered = text.lower()
         for prefix in (
-            "el usuario prefiere:",
-            "al usuario no le gusta:",
-            "hecho:",
-            "usuario:",
-            "respuesta:",
+            "the user prefers:",
+            "the user does not like:",
+            "the user usually:",
+            "fact:",
+            "user:",
+            "response:",
         ):
             lowered = lowered.replace(prefix, " ")
         return " ".join(lowered.split())
@@ -281,12 +282,12 @@ class MemoryAgent:
         if not recollections:
             return ""
 
-        lines = ["[Recuerdos recuperados]:\n"]
+        lines = ["[Retrieved memories]:\n"]
         for i, r in enumerate(recollections, 1):
             mem = r.memory
             lines.append(
-                f"  {i}. [{mem.memory_type}] (importancia={mem.importance:.1f}, "
-                f"fuerza={mem.strength:.2f}) {mem.content}"
+                f"  {i}. [{mem.memory_type}] (importance={mem.importance:.1f}, "
+                f"strength={mem.strength:.2f}) {mem.content}"
             )
             if mem.tags:
                 tags_str = ", ".join(mem.tags[:3])

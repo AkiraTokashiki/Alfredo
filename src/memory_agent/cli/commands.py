@@ -64,7 +64,7 @@ def chat(ctx: click.Context, label: str) -> None:
     try:
         while True:
             try:
-                user_input = input("\n  Tu > ").strip()
+                user_input = input("\n  You > ").strip()
             except (EOFError, KeyboardInterrupt):
                 print()
                 break
@@ -93,7 +93,7 @@ def chat(ctx: click.Context, label: str) -> None:
 
             # Print stats line
             if result["archived"] > 0:
-                print(f"  [archivados: {result['archived']}]")
+                print(f"  [archived: {result['archived']}]")
 
             # Generate a response
             response = _generate_response(agent, user_input, result)
@@ -150,8 +150,8 @@ def _handle_command(agent: MemoryAgent, cmd: str) -> None:
         for m in memories[:20]:
             tags = f" [{', '.join(m.tags[:2])}]" if m.tags else ""
             print(f"  #{m.id}: [{m.memory_type}] {m.content[:70]}{tags}")
-            print(f"       importancia={m.importance:.1f} fuerza={m.strength:.2f} "
-                  f"accesos={m.access_count}")
+            print(f"       importance={m.importance:.1f} strength={m.strength:.2f} "
+                  f"accesses={m.access_count}")
 
     elif command == "/search":
         if not arg:
@@ -197,18 +197,21 @@ def _generate_response(
 
     # Acknowledge new memories
     if new_count > 0:
-        response_parts.append(f"Entendido. He guardado {new_count} {'nuevo recuerdo' if new_count == 1 else 'nuevos recuerdos'}.")
+        response_parts.append(
+            f"Understood. I stored {new_count} "
+            f"{'new memory' if new_count == 1 else 'new memories'}."
+        )
 
     # Reference recollections
     if recollections:
         top = result["recollections"][0]
         response_parts.append(
-            f"Recorde que {top.memory.content[:50].lower()}..."
+            f"I remembered that {top.memory.content[:50].lower()}..."
         )
 
     # Final note
     response_parts.append(
-        f"Ya tengo {total} {'recuerdo' if total == 1 else 'recuerdos'} en mi memoria persistente."
+        f"I now have {total} {'memory' if total == 1 else 'memories'} in persistent storage."
     )
 
     return " ".join(response_parts)

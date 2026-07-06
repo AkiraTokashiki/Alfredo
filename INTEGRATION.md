@@ -1,11 +1,11 @@
-# Integracion de MemoryAgent con LLMs y Hermes
+# MemoryAgent Integration with LLMs and Hermes
 
-## 1. Como MCP Server (recomendado para Hermes)
+## 1. MCP Server mode (recommended for Hermes)
 
-MemoryAgent se expone como servidor MCP con herramientas de memoria.
-Cualquier cliente MCP (Hermes, Claude Desktop, Cursor) puede usarlo.
+MemoryAgent exposes a Model Context Protocol server with memory tools.
+Any MCP client can use it, including Hermes, Claude Desktop, and Cursor.
 
-### 1.1 Agregar a Hermes
+### 1.1 Add it to Hermes
 
 ```bash
 hermes mcp add memory-agent \
@@ -13,35 +13,35 @@ hermes mcp add memory-agent \
   --args "-m,memory_agent,mcp"
 ```
 
-O editar `~/.hermes/config.yaml` y agregar:
+Or edit `~/.hermes/config.yaml` and add:
 
 ```yaml
 mcp_servers:
   memory-agent:
     command: python
     args: ["-m", "memory_agent", "mcp"]
-    # Si Hermes esta en otro entorno:
+    # If Hermes runs in another environment:
     # command: "E:/CODE/MemoryAgent/.venv/Scripts/python.exe"
 ```
 
-Luego `/reload-mcp` en session Hermes y las herramientas aparecen:
+Then run `/reload-mcp` in the Hermes session. These tools become available:
 
-- `memory__perceive` — procesa input + busca recuerdos
-- `memory__search` — busqueda semantica
-- `memory__store` — guardar explicitamente
-- `memory__stats` — estadisticas
-- `memory__forget` — eliminar memoria
-- `memory__reinforce` — reforzar un recuerdo
+- `memory__perceive` — process input and retrieve relevant memories
+- `memory__search` — semantic memory search
+- `memory__store` — explicitly store a memory
+- `memory__stats` — show memory statistics
+- `memory__forget` — delete/archive memory
+- `memory__reinforce` — reinforce a memory
 
-### 1.2 Como servicio HTTP (para acceso remoto)
+### 1.2 HTTP service mode (for remote access)
 
 ```bash
 cd E:\CODE\MemoryAgent
 .venv\Scripts\python -m memory_agent mcp --http --port 8090
-# Escucha en http://localhost:8090/mcp
+# Listens on http://localhost:8090/mcp
 ```
 
-Luego en Hermes:
+Then configure Hermes:
 
 ```yaml
 mcp_servers:
@@ -49,14 +49,14 @@ mcp_servers:
     url: http://localhost:8090/mcp
 ```
 
-### 1.3 Probar el MCP server
+### 1.3 Test the MCP server
 
 ```bash
-# Probar que responde
+# Verify stdio mode responds
 echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | \
   .venv\Scripts\python -m memory_agent mcp
 
-# O desde otra terminal (HTTP mode activo):
+# Or from another terminal when HTTP mode is active
 curl http://localhost:8090/mcp \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
@@ -64,29 +64,29 @@ curl http://localhost:8090/mcp \
 
 ---
 
-## 2. LLM Connector (standalone con DeepSeek/OpenAI)
+## 2. Standalone LLM connector
 
-Conversacion completa con LLM real usando MemoryAgent como memoria persistente.
+The standalone connector runs a complete conversation with a real LLM while using MemoryAgent as persistent memory.
 
-### 2.1 Configurar API key
+### 2.1 Configure an API key
 
 ```bash
-# DeepSeek (default, recomendado)
+# DeepSeek (default)
 set DEEPSEEK_API_KEY=sk-...   # Windows CMD
 export DEEPSEEK_API_KEY=sk-... # bash
 
-# O OpenRouter
+# Or OpenRouter
 set OPENROUTER_API_KEY=sk-...
 ```
 
-### 2.2 Iniciar sesion interactiva
+### 2.2 Start an interactive session
 
 ```bash
 cd E:\CODE\MemoryAgent
 .venv\Scripts\python -m memory_agent.integrations.llm_connector
 ```
 
-Con proveedor especifico:
+With an explicit provider:
 
 ```bash
 # DeepSeek (default)
@@ -107,36 +107,36 @@ set ANTHROPIC_API_KEY=sk-...
   --provider anthropic --model claude-sonnet-4-20250514
 ```
 
-### 2.3 Consulta unica
+### 2.3 Single query
 
 ```bash
 .venv\Scripts\python -m memory_agent.integrations.llm_connector \
-  -q "Que sabes sobre mi?"
+  -q "What do you know about me?"
 ```
 
-### 2.4 DB persistente entre sesiones
+### 2.4 Persistent database across sessions
 
-Por default la DB se guarda en el directorio actual (`memory_agent.db`).
-Para usar una DB especifica:
+By default, MemoryAgent stores runtime memory in the native memory vault.
+Pass `--db` to use a specific database path:
 
 ```bash
 .venv\Scripts\python -m memory_agent.integrations.llm_connector \
-  --db "E:/CODE/MemoryAgent/mi_memoria.db"
+  --db "E:/CODE/MemoryAgent/my_memory.db"
 ```
 
 ---
 
-## 3. Integracion como skill de Hermes
+## 3. Hermes skill integration
 
-Para que Hermes cargue MemoryAgent automaticamente al iniciar:
+To make Hermes load MemoryAgent behavior automatically at startup:
 
-### Crear el skill
+### Create the skill
 
 ```bash
 hermes skills create memory-agent-integration
 ```
 
-Contenido del skill:
+Skill content:
 
 ```markdown
 # MemoryAgent Integration
@@ -151,7 +151,7 @@ At the start of each session, use memory__stats to check
 how many memories are stored.
 ```
 
-### Cargar en session
+### Load it in a session
 
 ```bash
 hermes -s memory-agent-integration
@@ -159,23 +159,23 @@ hermes -s memory-agent-integration
 
 ---
 
-## 4. Uso programatico (Python)
+## 4. Programmatic Python usage
 
 ```python
 from memory_agent.agent.orchestrator import MemoryAgent
 
-agent = MemoryAgent(db_path="mi_memoria.db")
-agent.init_session("mi-sesion")
+agent = MemoryAgent(db_path="my_memory.db")
+agent.init_session("my-session")
 
-# Un turno: extrae + busca + almacena
-result = agent.perceive("Me gusta programar en Python")
+# One turn: extract, retrieve, and store
+result = agent.perceive("I like programming in Python")
 
-print("Recuerdos recuperados:", len(result["recollections"]))
+print("Retrieved memories:", len(result["recollections"]))
 for r in result["recollections"]:
     print(f"  [{r.memory.memory_type}] {r.memory.content}")
 
-print(f"\nMemorias activas: {result['total_memories']}")
-print(f"Turno: {result['turn_count']}")
+print(f"\nActive memories: {result['total_memories']}")
+print(f"Turn: {result['turn_count']}")
 
 agent.end_session()
 agent.close()
@@ -183,10 +183,10 @@ agent.close()
 
 ---
 
-## 5. Providers soportados
+## 5. Supported providers
 
-| Provider | Env var | Modelo default |
-|----------|---------|----------------|
+| Provider | Environment variable | Default model |
+|----------|----------------------|---------------|
 | Qwen Cloud | `DASHSCOPE_API_KEY` | qwen-plus |
 | DeepSeek | `DEEPSEEK_API_KEY` | deepseek-chat |
 | OpenRouter | `OPENROUTER_API_KEY` | openai/gpt-4o |
@@ -195,11 +195,11 @@ agent.close()
 
 ---
 
-## 6. Arquitectura
+## 6. Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────┐
-│                    Cliente                           │
+│                    Client                           │
 │  (Hermes / Claude Desktop / Cursor / script.py)     │
 └────────────────┬────────────────────────────────────┘
                  │ MCP protocol (stdio or HTTP)
@@ -221,21 +221,12 @@ agent.close()
 └─────────────────────────────────────────────────────┘
 ```
 
-Para LLM Connector:
+---
 
-```
-┌─────────────────────────────────────────────────────┐
-│              LLMConnector                            │
-│                                                      │
-│  User Input ──► MemoryAgent.perceive() ──► Memories  │
-│       │                                              │
-│       ▼                                              │
-│  Build Context (system prompt + memories)            │
-│       │                                              │
-│       ▼                                              │
-│  LLM API (DeepSeek / OpenAI / etc.)                  │
-│       │                                              │
-│       ▼                                              │
-│  Response ──► MemoryAgent stores interaction         │
-└─────────────────────────────────────────────────────┘
-```
+## 7. Production recommendations
+
+1. Run the MCP server as a supervised service.
+2. Back up the native SQLite vault.
+3. Set a stable `ALFREDO_HOME` before deployment.
+4. Use one database per agent/user boundary when memory isolation matters.
+5. Monitor database size and retrieval latency as memories grow.

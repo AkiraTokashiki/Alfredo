@@ -29,26 +29,26 @@ def main() -> None:
     agent.init_session("session 1")
     print_turn(
         "Session 1: learn preferences",
-        agent.perceive("Me gusta Python y prefiero respuestas concisas"),
+        agent.perceive("I like Python and I prefer concise answers"),
     )
     agent.end_session()
 
     agent.init_session("session 2")
-    print_turn("Session 2: recall preference", agent.perceive("Que lenguaje me gusta?"))
+    print_turn("Session 2: recall preference", agent.perceive("What language do I like?"))
     agent.end_session()
 
     agent.init_session("session 3")
-    print_turn("Session 3: update stale preference", agent.perceive("No me gusta Python"))
+    print_turn("Session 3: update stale preference", agent.perceive("I do not like Python"))
     agent.end_session()
 
     agent.init_session("session 4")
     for idx in range(20):
         agent.store_memory(
-            MemoryRecord(content=f"ruido de baja importancia {idx}", importance=0.1)
+            MemoryRecord(content=f"low-importance noise {idx}", importance=0.1)
         )
     print_turn(
         "Session 4: bounded recall after noise",
-        agent.perceive("Que recuerdas de mis preferencias?"),
+        agent.perceive("What do you remember about my preferences?"),
     )
 
     stats = agent.get_stats()

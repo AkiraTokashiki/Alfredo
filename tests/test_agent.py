@@ -29,31 +29,31 @@ class TestMemoryAgent:
 
     def test_perceive_empty(self, agent: MemoryAgent):
         agent.init_session()
-        result = agent.perceive("hola")
+        result = agent.perceive("hello")
         assert result["turn_count"] == 1
         assert isinstance(result["recollections"], list)
         assert isinstance(result["recollection_text"], str)
 
     def test_perceive_stores_preferences(self, agent: MemoryAgent):
         agent.init_session()
-        result = agent.perceive("Me gusta programar en Python")
+        result = agent.perceive("I like programming in Python")
         assert len(result["new_memories"]) >= 1
         # Should have extracted preference
         pref = result["new_memories"][0]
         assert pref.memory_type in ("preference", "habit")
-        assert "Python" in pref.content or "programar" in pref.content
+        assert "Python" in pref.content or "programming" in pref.content
         assert "preference" in pref.tags or "extracted" in pref.tags
 
     def test_perceive_recalls_memories(self, agent: MemoryAgent):
         agent.init_session()
 
         # Store a memory first
-        agent.perceive("Mi lenguaje favorito es Python")
+        agent.perceive("My favorite language is Python")
         # Should have stored at least the interaction as episodic memory
         assert agent.state.total_memories >= 1
 
         # Now ask about it
-        result = agent.perceive("Que lenguaje me gusta?")
+        result = agent.perceive("What language do I like?")
         recollections = result["recollections"]
         if recollections:
             # Should recall Python-related memories
@@ -64,14 +64,14 @@ class TestMemoryAgent:
     def test_forgetting_cycle_runs(self, agent: MemoryAgent):
         agent.init_session()
         for i in range(10):
-            result = agent.perceive(f"turno {i}")
+            result = agent.perceive(f"turn {i}")
         # Decay runs every 3 turns, so by turn 10 it should have run at least 3 times
         assert result["turn_count"] == 10
 
     def test_archival(self, agent: MemoryAgent):
         agent.init_session()
         # Add a very weak memory directly
-        weak = MemoryRecord(content="algo olvidable", strength=0.01, importance=0.1)
+        weak = MemoryRecord(content="forgettable detail", strength=0.01, importance=0.1)
         agent.store.add_memory(weak)
 
         # Run decay cycle manually
@@ -84,8 +84,8 @@ class TestMemoryAgent:
 
     def test_stats(self, agent: MemoryAgent):
         agent.init_session()
-        agent.perceive("Me gusta el cafe")
-        agent.perceive("Trabajo como programador")
+        agent.perceive("I like coffee")
+        agent.perceive("I work as a programmer")
 
         stats = agent.get_stats()
         assert stats["total_active"] >= 2
@@ -95,13 +95,13 @@ class TestMemoryAgent:
     def test_multiple_sessions(self, agent: MemoryAgent):
         # Session 1
         agent.init_session("session 1")
-        agent.perceive("Me gusta Python")
+        agent.perceive("I like Python")
         s1_memories = agent.state.total_memories
         agent.end_session()
 
         # Session 2
         agent.init_session("session 2")
-        agent.perceive("Que recuerdas de mi?")
+        agent.perceive("What do you remember about me?")
         # Should still have memories from session 1
         assert agent.state.total_memories >= s1_memories
 
@@ -123,19 +123,19 @@ class TestMemoryAgent:
         assert fetched.content == "test public store"
 
     def test_negative_preference(self, agent: MemoryAgent):
-        """'no me gusta X' should store as negative preference."""
+        """'I do not like X' should store as negative preference."""
         agent.init_session()
         from memory_agent.agent.decision import extract_from_input
-        memories = extract_from_input("No me gusta el cafe con leche")
+        memories = extract_from_input("I do not like coffee with milk")
         assert len(memories) >= 1
         mem = memories[0]
-        assert "no le gusta" in mem.content
+        assert "does not like" in mem.content.lower()
         assert mem.importance == pytest.approx(0.6)
 
     def test_high_importance_preference(self, agent: MemoryAgent):
         """Strong preferences should have higher importance."""
         from memory_agent.agent.decision import extract_from_input
-        memories = extract_from_input("Me encanta la musica electronica")
+        memories = extract_from_input("I love electronic music")
         assert len(memories) >= 1
         assert memories[0].importance == pytest.approx(0.9)
 
@@ -151,7 +151,7 @@ class TestMemoryAgent:
     def test_preference_extraction_adds_topic_and_polarity(self):
         from memory_agent.agent.decision import extract_from_input
 
-        memories = extract_from_input("Me gusta Python")
+        memories = extract_from_input("I like Python")
 
         assert memories
         assert memories[0].metadata["topic"] == "python"
@@ -160,7 +160,7 @@ class TestMemoryAgent:
     def test_negative_preference_extraction_adds_negative_polarity(self):
         from memory_agent.agent.decision import extract_from_input
 
-        memories = extract_from_input("No me gusta Python")
+        memories = extract_from_input("I do not like Python")
 
         assert memories
         assert memories[0].metadata["topic"] == "python"
@@ -171,14 +171,14 @@ class TestMemoryAgent:
 
         assert extract_forget_query("forget python") == "python"
         assert extract_forget_query("olvida que me gusta python") == "me gusta python"
-        assert extract_forget_query("Me gusta Python") is None
+        assert extract_forget_query("I like Python") is None
 
     def test_duplicate_preference_is_not_stored_twice(self, agent: MemoryAgent):
         agent.init_session()
-        agent.perceive("Me gusta Python")
+        agent.perceive("I like Python")
         first_total = agent.state.total_memories
 
-        result = agent.perceive("Me gusta programar en Python")
+        result = agent.perceive("I like programming in Python")
 
         active_preferences = [
             m for m in agent.store.get_all_active_memories()
@@ -190,11 +190,11 @@ class TestMemoryAgent:
 
     def test_changed_preference_supersedes_old_preference(self, agent: MemoryAgent):
         agent.init_session("session 1")
-        agent.perceive("Me gusta Python")
+        agent.perceive("I like Python")
         agent.end_session()
 
         agent.init_session("session 2")
-        agent.perceive("No me gusta Python")
+        agent.perceive("I do not like Python")
 
         all_memories = [
             agent.store.get_memory(m.id)
@@ -206,26 +206,45 @@ class TestMemoryAgent:
             if m is not None and m.memory_type == "preference" and "python" in m.content.lower()
         ]
         assert len(active_python_preferences) == 1
-        assert "no le gusta" in active_python_preferences[0].content.lower()
+        assert "does not like" in active_python_preferences[0].content.lower()
 
         archived_count = agent.store.count_memories(active_only=False) - agent.store.count_memories(active_only=True)
         assert archived_count >= 1
 
     def test_explicit_forget_removes_memory_from_default_recall(self, agent: MemoryAgent):
         agent.init_session()
-        agent.perceive("Me gusta Python")
+        agent.perceive("I like Python")
 
         result = agent.perceive("forget python")
 
         assert result["archived"] >= 1
         active_contents = [m.content.lower() for m in agent.store.get_all_active_memories()]
-        assert not any("prefiere: python" in content for content in active_contents)
+        assert not any("prefers: python" in content for content in active_contents)
 
     def test_perceive_returns_recall_packet(self, agent: MemoryAgent):
         agent.init_session()
-        agent.perceive("Me gusta Python")
+        agent.perceive("I like Python")
 
-        result = agent.perceive("Que lenguaje me gusta?")
+        result = agent.perceive("What language do I like?")
 
         assert "recall_packet" in result
         assert result["recall_packet"].used_chars <= result["recall_packet"].available_chars
+
+    def test_spanish_input_produces_english_memory_content(self):
+        from memory_agent.agent.decision import extract_from_input
+
+        memories = extract_from_input("Me gusta Python")
+
+        assert memories
+        assert memories[0].content == "The user prefers: python"
+
+    def test_recollection_context_is_english(self, agent: MemoryAgent):
+        agent.init_session()
+        agent.perceive("I like Python")
+
+        result = agent.perceive("What language do I like?")
+
+        assert "[Retrieved memories]:" in result["recollection_text"]
+        assert "importance=" in result["recollection_text"]
+        assert "strength=" in result["recollection_text"]
+        assert "Recuerdos" not in result["recollection_text"]

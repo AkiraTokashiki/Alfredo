@@ -150,15 +150,15 @@ class TestMemoryStore:
         assert all_emb[0][0] == mid
 
     def test_keyword_search(self, store: MemoryStore):
-        store.add_memory(MemoryRecord(content="el gato esta en la casa"))
-        store.add_memory(MemoryRecord(content="el perro esta en el parque"))
-        store.add_memory(MemoryRecord(content="me gusta el cafe"))
+        store.add_memory(MemoryRecord(content="the cat is in the house"))
+        store.add_memory(MemoryRecord(content="the dog is in the park"))
+        store.add_memory(MemoryRecord(content="I like coffee"))
 
-        results = store.search_keywords("gato")
+        results = store.search_keywords("cat")
         assert len(results) == 1
-        assert "gato" in results[0].content
+        assert "cat" in results[0].content
 
-        results = store.search_keywords("esta")
+        results = store.search_keywords("the")
         assert len(results) == 2
 
     def test_archive_below_threshold(self, store: MemoryStore):
