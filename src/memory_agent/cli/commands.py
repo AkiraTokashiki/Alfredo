@@ -5,11 +5,14 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import click
 
-from memory_agent.agent.orchestrator import MemoryAgent
+if TYPE_CHECKING:
+    from memory_agent.agent.orchestrator import MemoryAgent
 from memory_agent.core.config import MemoryAgentConfig
+from memory_agent.core.memory_store import MemoryStore
 
 
 @click.group()
@@ -37,10 +40,22 @@ def cli(ctx: click.Context, db: str | None, model: str | None) -> None:
     if model:
         config.embedding.model_name = model
 
-    agent = MemoryAgent(config=config, db_path=db_path)
+    # Subcommands create MemoryAgent lazily. Benchmark commands can seed/evaluate
+    # SQLite without loading an embedding model.
+    ctx.obj["config"] = config
+    ctx.obj["db_path"] = db_path
+    ctx.obj["agent"] = None
 
-    # Don't auto-init session; let subcommands handle it
-    ctx.obj["agent"] = agent
+
+
+def _get_agent(ctx: click.Context) -> MemoryAgent:
+    agent = ctx.obj.get("agent")
+    if agent is None:
+        from memory_agent.agent.orchestrator import MemoryAgent
+
+        agent = MemoryAgent(config=ctx.obj["config"], db_path=ctx.obj["db_path"])
+        ctx.obj["agent"] = agent
+    return agent
 
 
 # ------------------------------------------------------------------
@@ -53,7 +68,7 @@ def cli(ctx: click.Context, db: str | None, model: str | None) -> None:
 @click.pass_context
 def chat(ctx: click.Context, label: str) -> None:
     """Start an interactive chat session."""
-    agent: MemoryAgent = ctx.obj["agent"]
+    agent = _get_agent(ctx)
 
     print("\n  MemoryAgent — Interactive Session")
     print("  Commands: /stats, /memories, /search <q>, /forget <id>, /help, /quit")
@@ -226,7 +241,7 @@ def _generate_response(
 @click.pass_context
 def stats(ctx: click.Context) -> None:
     """Show memory statistics without starting a session."""
-    agent: MemoryAgent = ctx.obj["agent"]
+    agent = _get_agent(ctx)
     stats_data = agent.get_stats()
 
     click.echo("\n📊 MemoryAgent Statistics")
@@ -251,7 +266,7 @@ def stats(ctx: click.Context) -> None:
 @click.pass_context
 def search(ctx: click.Context, query: str, top_k: int) -> None:
     """Semantic memory search."""
-    agent: MemoryAgent = ctx.obj["agent"]
+    agent = _get_agent(ctx)
     results = agent.retrieval.retrieve(query, top_k=top_k)
 
     if not results:
@@ -274,7 +289,7 @@ def search(ctx: click.Context, query: str, top_k: int) -> None:
 @click.pass_context
 def memories(ctx: click.Context) -> None:
     """List all active memories."""
-    agent: MemoryAgent = ctx.obj["agent"]
+    agent = _get_agent(ctx)
     all_memories = agent.store.get_all_active_memories()
 
     if not all_memories:
@@ -291,6 +306,123 @@ def memories(ctx: click.Context) -> None:
         )
         click.echo(f"      {m.content[:80]}")
         click.echo()
+
+
+
+@cli.group()
+def benchmark() -> None:
+    """Run Alfredo's Vault synthetic memory benchmark."""
+
+
+@benchmark.command("seed")
+@click.option(
+    "--users",
+    "users_path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Path to USERS_JSON.",
+)
+@click.option(
+    "--memories",
+    "memories_path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Path to MEMORIES_JSONL.",
+)
+@click.option("--expected-users", type=int, default=None, help="Exact expected user count.")
+@click.option("--expected-memories", type=int, default=None, help="Exact expected memory count.")
+@click.pass_context
+def benchmark_seed(
+    ctx: click.Context,
+    users_path: Path,
+    memories_path: Path,
+    expected_users: int | None,
+    expected_memories: int | None,
+) -> None:
+    """Load benchmark users and memories into the configured SQLite vault."""
+    from memory_agent.benchmark import (
+        load_memories_jsonl,
+        load_users,
+        seed_memory_store,
+    )
+
+    db_path = ctx.obj["db_path"]
+    store = MemoryStore(db_path)
+    store.initialize()
+    try:
+        users = load_users(users_path, expected_count=expected_users)
+        memories = load_memories_jsonl(memories_path, expected_count=expected_memories)
+        stats = seed_memory_store(store, users, memories)
+    finally:
+        store.close()
+    click.echo("ALFREDO VAULT BENCHMARK SEEDED")
+    click.echo(f"DB: {db_path}")
+    click.echo(f"Users: {len(users)}")
+    click.echo(f"Memories inserted: {stats['inserted']}")
+    click.echo(f"Active memories: {stats['active']}")
+    click.echo(f"Inactive memories: {stats['inactive']}")
+
+
+@benchmark.command("run")
+@click.option(
+    "--users",
+    "users_path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Path to USERS_JSON.",
+)
+@click.option(
+    "--questions",
+    "questions_path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Path to EVALUATION_QUESTIONS_JSONL.",
+)
+@click.option(
+    "--report",
+    "report_path",
+    required=True,
+    type=click.Path(dir_okay=False, path_type=Path),
+    help="Where to write benchmark_report.json.",
+)
+@click.option("--expected-users", type=int, default=None, help="Exact expected user count.")
+@click.option("--expected-questions", type=int, default=None, help="Exact expected question count.")
+@click.pass_context
+def benchmark_run(
+    ctx: click.Context,
+    users_path: Path,
+    questions_path: Path,
+    report_path: Path,
+    expected_users: int | None,
+    expected_questions: int | None,
+) -> None:
+    """Evaluate benchmark questions against the configured SQLite vault."""
+    from memory_agent.benchmark import (
+        evaluate_questions,
+        load_questions_jsonl,
+        load_users,
+        write_report,
+    )
+
+    db_path = ctx.obj["db_path"]
+    store = MemoryStore(db_path)
+    store.initialize()
+    try:
+        users = load_users(users_path, expected_count=expected_users)
+        questions = load_questions_jsonl(questions_path, expected_count=expected_questions)
+        results = evaluate_questions(store, questions, users=users)
+    finally:
+        store.close()
+    report = write_report(results, report_path)
+    metrics = report["metrics"]
+    click.echo("ALFREDO VAULT BENCHMARK REPORT")
+    click.echo(f"DB: {db_path}")
+    click.echo(f"Questions: {metrics['total_questions']}")
+    click.echo(f"Passed: {metrics['passed']}")
+    click.echo(f"Failed: {metrics['failed']}")
+    click.echo(f"Accuracy: {metrics['accuracy_percentage']:.2f}%")
+    click.echo(f"Security events: {metrics['security_events']}")
+    click.echo(f"Report: {report_path}")
 
 
 @cli.command()

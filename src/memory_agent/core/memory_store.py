@@ -447,7 +447,8 @@ class MemoryStore:
     def _row_to_memory(self, row: sqlite3.Row) -> MemoryRecord:
         # Tags are in a separate table, always fetch from there
         tags_rows = self.conn.execute(
-            "SELECT tag FROM memory_tags WHERE memory_id = ?", (row["id"],)
+            "SELECT tag FROM memory_tags WHERE memory_id = ? ORDER BY rowid",
+            (row["id"],),
         ).fetchall()
         tags = [t["tag"] for t in tags_rows]
 

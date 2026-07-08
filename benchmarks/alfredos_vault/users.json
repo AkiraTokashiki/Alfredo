@@ -1,0 +1,527 @@
+[
+  {
+    "user_id": "user_001",
+    "display_name": "Ariel Rivera",
+    "persona": "backend engineer",
+    "locale": "es-AR",
+    "created_at": "2026-04-10T12:00:00Z",
+    "synthetic": true,
+    "vault_profile": {
+      "target_continuity_days": 90,
+      "expected_memory_count": 200,
+      "domains": [
+        "health",
+        "work",
+        "code",
+        "agenda",
+        "preferences",
+        "documents",
+        "conversations"
+      ]
+    }
+  },
+  {
+    "user_id": "user_002",
+    "display_name": "Bianca Chen",
+    "persona": "product manager",
+    "locale": "en-US",
+    "created_at": "2026-04-11T12:00:00Z",
+    "synthetic": true,
+    "vault_profile": {
+      "target_continuity_days": 90,
+      "expected_memory_count": 200,
+      "domains": [
+        "health",
+        "work",
+        "code",
+        "agenda",
+        "preferences",
+        "documents",
+        "conversations"
+      ]
+    }
+  },
+  {
+    "user_id": "user_003",
+    "display_name": "Ciro Okafor",
+    "persona": "data scientist",
+    "locale": "pt-BR",
+    "created_at": "2026-04-12T12:00:00Z",
+    "synthetic": true,
+    "vault_profile": {
+      "target_continuity_days": 90,
+      "expected_memory_count": 200,
+      "domains": [
+        "health",
+        "work",
+        "code",
+        "agenda",
+        "preferences",
+        "documents",
+        "conversations"
+      ]
+    }
+  },
+  {
+    "user_id": "user_004",
+    "display_name": "Dalia Silva",
+    "persona": "UX designer",
+    "locale": "es-MX",
+    "created_at": "2026-04-13T12:00:00Z",
+    "synthetic": true,
+    "vault_profile": {
+      "target_continuity_days": 90,
+      "expected_memory_count": 200,
+      "domains": [
+        "health",
+        "work",
+        "code",
+        "agenda",
+        "preferences",
+        "documents",
+        "conversations"
+      ]
+    }
+  },
+  {
+    "user_id": "user_005",
+    "display_name": "Emilio Novak",
+    "persona": "DevOps engineer",
+    "locale": "fr-FR",
+    "created_at": "2026-04-14T12:00:00Z",
+    "synthetic": true,
+    "vault_profile": {
+      "target_continuity_days": 90,
+      "expected_memory_count": 200,
+      "domains": [
+        "health",
+        "work",
+        "code",
+        "agenda",
+        "preferences",
+        "documents",
+        "conversations"
+      ]
+    }
+  },
+  {
+    "user_id": "user_006",
+    "display_name": "Fiona Patel",
+    "persona": "technical writer",
+    "locale": "es-AR",
+    "created_at": "2026-04-15T12:00:00Z",
+    "synthetic": true,
+    "vault_profile": {
+      "target_continuity_days": 90,
+      "expected_memory_count": 200,
+      "domains": [
+        "health",
+        "work",
+        "code",
+        "agenda",
+        "preferences",
+        "documents",
+        "conversations"
+      ]
+    }
+  },
+  {
+    "user_id": "user_007",
+    "display_name": "Gael Mendez",
+    "persona": "founder",
+    "locale": "en-US",
+    "created_at": "2026-04-16T12:00:00Z",
+    "synthetic": true,
+    "vault_profile": {
+      "target_continuity_days": 90,
+      "expected_memory_count": 200,
+      "domains": [
+        "health",
+        "work",
+        "code",
+        "agenda",
+        "preferences",
+        "documents",
+        "conversations"
+      ]
+    }
+  },
+  {
+    "user_id": "user_008",
+    "display_name": "Helena Kowalski",
+    "persona": "student",
+    "locale": "pt-BR",
+    "created_at": "2026-04-17T12:00:00Z",
+    "synthetic": true,
+    "vault_profile": {
+      "target_continuity_days": 90,
+      "expected_memory_count": 200,
+      "domains": [
+        "health",
+        "work",
+        "code",
+        "agenda",
+        "preferences",
+        "documents",
+        "conversations"
+      ]
+    }
+  },
+  {
+    "user_id": "user_009",
+    "display_name": "Ivan Ibrahim",
+    "persona": "sales engineer",
+    "locale": "es-MX",
+    "created_at": "2026-04-18T12:00:00Z",
+    "synthetic": true,
+    "vault_profile": {
+      "target_continuity_days": 90,
+      "expected_memory_count": 200,
+      "domains": [
+        "health",
+        "work",
+        "code",
+        "agenda",
+        "preferences",
+        "documents",
+        "conversations"
+      ]
+    }
+  },
+  {
+    "user_id": "user_010",
+    "display_name": "Juno Sato",
+    "persona": "security analyst",
+    "locale": "fr-FR",
+    "created_at": "2026-04-19T12:00:00Z",
+    "synthetic": true,
+    "vault_profile": {
+      "target_continuity_days": 90,
+      "expected_memory_count": 200,
+      "domains": [
+        "health",
+        "work",
+        "code",
+        "agenda",
+        "preferences",
+        "documents",
+        "conversations"
+      ]
+    }
+  },
+  {
+    "user_id": "user_011",
+    "display_name": "Kira Moreau",
+    "persona": "mobile developer",
+    "locale": "es-AR",
+    "created_at": "2026-04-20T12:00:00Z",
+    "synthetic": true,
+    "vault_profile": {
+      "target_continuity_days": 90,
+      "expected_memory_count": 200,
+      "domains": [
+        "health",
+        "work",
+        "code",
+        "agenda",
+        "preferences",
+        "documents",
+        "conversations"
+      ]
+    }
+  },
+  {
+    "user_id": "user_012",
+    "display_name": "Leo Diaz",
+    "persona": "ML engineer",
+    "locale": "en-US",
+    "created_at": "2026-04-21T12:00:00Z",
+    "synthetic": true,
+    "vault_profile": {
+      "target_continuity_days": 90,
+      "expected_memory_count": 200,
+      "domains": [
+        "health",
+        "work",
+        "code",
+        "agenda",
+        "preferences",
+        "documents",
+        "conversations"
+      ]
+    }
+  },
+  {
+    "user_id": "user_013",
+    "display_name": "Mara Nakamura",
+    "persona": "project manager",
+    "locale": "pt-BR",
+    "created_at": "2026-04-22T12:00:00Z",
+    "synthetic": true,
+    "vault_profile": {
+      "target_continuity_days": 90,
+      "expected_memory_count": 200,
+      "domains": [
+        "health",
+        "work",
+        "code",
+        "agenda",
+        "preferences",
+        "documents",
+        "conversations"
+      ]
+    }
+  },
+  {
+    "user_id": "user_014",
+    "display_name": "Nico Khan",
+    "persona": "QA lead",
+    "locale": "es-MX",
+    "created_at": "2026-04-23T12:00:00Z",
+    "synthetic": true,
+    "vault_profile": {
+      "target_continuity_days": 90,
+      "expected_memory_count": 200,
+      "domains": [
+        "health",
+        "work",
+        "code",
+        "agenda",
+        "preferences",
+        "documents",
+        "conversations"
+      ]
+    }
+  },
+  {
+    "user_id": "user_015",
+    "display_name": "Olivia Rossi",
+    "persona": "support specialist",
+    "locale": "fr-FR",
+    "created_at": "2026-04-24T12:00:00Z",
+    "synthetic": true,
+    "vault_profile": {
+      "target_continuity_days": 90,
+      "expected_memory_count": 200,
+      "domains": [
+        "health",
+        "work",
+        "code",
+        "agenda",
+        "preferences",
+        "documents",
+        "conversations"
+      ]
+    }
+  },
+  {
+    "user_id": "user_016",
+    "display_name": "Paz Bennett",
+    "persona": "researcher",
+    "locale": "es-AR",
+    "created_at": "2026-04-25T12:00:00Z",
+    "synthetic": true,
+    "vault_profile": {
+      "target_continuity_days": 90,
+      "expected_memory_count": 200,
+      "domains": [
+        "health",
+        "work",
+        "code",
+        "agenda",
+        "preferences",
+        "documents",
+        "conversations"
+      ]
+    }
+  },
+  {
+    "user_id": "user_017",
+    "display_name": "Quinn Singh",
+    "persona": "finance analyst",
+    "locale": "en-US",
+    "created_at": "2026-04-26T12:00:00Z",
+    "synthetic": true,
+    "vault_profile": {
+      "target_continuity_days": 90,
+      "expected_memory_count": 200,
+      "domains": [
+        "health",
+        "work",
+        "code",
+        "agenda",
+        "preferences",
+        "documents",
+        "conversations"
+      ]
+    }
+  },
+  {
+    "user_id": "user_018",
+    "display_name": "Rafa Costa",
+    "persona": "teacher",
+    "locale": "pt-BR",
+    "created_at": "2026-04-27T12:00:00Z",
+    "synthetic": true,
+    "vault_profile": {
+      "target_continuity_days": 90,
+      "expected_memory_count": 200,
+      "domains": [
+        "health",
+        "work",
+        "code",
+        "agenda",
+        "preferences",
+        "documents",
+        "conversations"
+      ]
+    }
+  },
+  {
+    "user_id": "user_019",
+    "display_name": "Sofia Vega",
+    "persona": "health coach",
+    "locale": "es-MX",
+    "created_at": "2026-04-28T12:00:00Z",
+    "synthetic": true,
+    "vault_profile": {
+      "target_continuity_days": 90,
+      "expected_memory_count": 200,
+      "domains": [
+        "health",
+        "work",
+        "code",
+        "agenda",
+        "preferences",
+        "documents",
+        "conversations"
+      ]
+    }
+  },
+  {
+    "user_id": "user_020",
+    "display_name": "Tomas Muller",
+    "persona": "legal ops lead",
+    "locale": "fr-FR",
+    "created_at": "2026-04-29T12:00:00Z",
+    "synthetic": true,
+    "vault_profile": {
+      "target_continuity_days": 90,
+      "expected_memory_count": 200,
+      "domains": [
+        "health",
+        "work",
+        "code",
+        "agenda",
+        "preferences",
+        "documents",
+        "conversations"
+      ]
+    }
+  },
+  {
+    "user_id": "user_021",
+    "display_name": "Uma Park",
+    "persona": "game developer",
+    "locale": "es-AR",
+    "created_at": "2026-04-30T12:00:00Z",
+    "synthetic": true,
+    "vault_profile": {
+      "target_continuity_days": 90,
+      "expected_memory_count": 200,
+      "domains": [
+        "health",
+        "work",
+        "code",
+        "agenda",
+        "preferences",
+        "documents",
+        "conversations"
+      ]
+    }
+  },
+  {
+    "user_id": "user_022",
+    "display_name": "Vera Torres",
+    "persona": "community manager",
+    "locale": "en-US",
+    "created_at": "2026-05-01T12:00:00Z",
+    "synthetic": true,
+    "vault_profile": {
+      "target_continuity_days": 90,
+      "expected_memory_count": 200,
+      "domains": [
+        "health",
+        "work",
+        "code",
+        "agenda",
+        "preferences",
+        "documents",
+        "conversations"
+      ]
+    }
+  },
+  {
+    "user_id": "user_023",
+    "display_name": "Waldo Haddad",
+    "persona": "architect",
+    "locale": "pt-BR",
+    "created_at": "2026-05-02T12:00:00Z",
+    "synthetic": true,
+    "vault_profile": {
+      "target_continuity_days": 90,
+      "expected_memory_count": 200,
+      "domains": [
+        "health",
+        "work",
+        "code",
+        "agenda",
+        "preferences",
+        "documents",
+        "conversations"
+      ]
+    }
+  },
+  {
+    "user_id": "user_024",
+    "display_name": "Ximena Lima",
+    "persona": "operations manager",
+    "locale": "es-MX",
+    "created_at": "2026-05-03T12:00:00Z",
+    "synthetic": true,
+    "vault_profile": {
+      "target_continuity_days": 90,
+      "expected_memory_count": 200,
+      "domains": [
+        "health",
+        "work",
+        "code",
+        "agenda",
+        "preferences",
+        "documents",
+        "conversations"
+      ]
+    }
+  },
+  {
+    "user_id": "user_025",
+    "display_name": "Yago Stone",
+    "persona": "developer advocate",
+    "locale": "fr-FR",
+    "created_at": "2026-05-04T12:00:00Z",
+    "synthetic": true,
+    "vault_profile": {
+      "target_continuity_days": 90,
+      "expected_memory_count": 200,
+      "domains": [
+        "health",
+        "work",
+        "code",
+        "agenda",
+        "preferences",
+        "documents",
+        "conversations"
+      ]
+    }
+  }
+]

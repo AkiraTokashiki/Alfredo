@@ -8,9 +8,9 @@ MemoryAgent matches Track 1 because it gives an AI agent persistent memory acros
 
 ## Project description
 
-MemoryAgent is a persistent memory layer for AI agents running on Qwen Cloud. It stores user preferences, facts, and interaction history in SQLite, searches them with semantic embeddings, ranks recall candidates by semantic relevance, recency, importance, and recall strength, then injects the most relevant memories into the model context.
+MemoryAgent is a persistent memory layer for AI agents running on Qwen Cloud. It stores user preferences, facts, interaction history, and benchmarked memory records in SQLite, searches them with semantic embeddings or deterministic benchmark IDs, ranks recall candidates by semantic relevance, recency, importance, and recall strength, then injects only the most relevant trusted memories into the model context.
 
-The agent improves across turns and sessions because useful memories are reinforced when retrieved, while low-strength or stale memories decay and are archived. The project includes a CLI, MCP integration, an LLM connector for Qwen Cloud's OpenAI-compatible API, demos, and tests for storage, retrieval, forgetting, and agent behavior.
+The agent improves across turns and sessions because useful memories are reinforced when retrieved, while low-strength or stale memories decay and are archived. The project includes a CLI, MCP integration, an LLM connector for Qwen Cloud's OpenAI-compatible API, demos, tests, and Alfredo's Vault benchmark: 25 synthetic users, 5,000 JSONL memories, and 500 evaluation questions covering temporal recall, contradiction updates, expiry, explicit forgetting, low-confidence abstention, sensitive-memory boundaries, and prompt-injection resistance.
 
 ## Required submission URLs
 
@@ -31,7 +31,8 @@ Fill these before final Devpost submission:
 - `docs/ARCHITECTURE.md` — architecture diagram and system flow.
 - `docs/architecture.svg` — rendered architecture diagram asset for judges.
 - `deploy/alibaba_cloud_proof.py` — code that demonstrates Alibaba Cloud Function Compute and Qwen Cloud API usage.
-- `examples/demo_basic.py` and `examples/demo_multi_session.py` — local functionality demos.
+- `examples/demo_basic.py`, `examples/demo_multi_session.py`, and `examples/demo_video.py` — local functionality and Devpost recording demos.
+- `benchmarks/alfredos_vault/` — synthetic benchmark users, memories, evaluation questions, and generated reports.
 
 ## Alibaba Cloud deployment proof instructions
 
@@ -56,28 +57,28 @@ See `docs/ARCHITECTURE.md` and the rendered diagram asset `docs/architecture.svg
 
 Target length: about 3 minutes.
 
-1. **0:00-0:20** — Introduce Track 1: MemoryAgent and the problem: agents forget user preferences across sessions.
-2. **0:20-0:55** — Show MemoryAgent storing a preference in one session.
-3. **0:55-1:25** — Start a new session and show cross-session recall.
-4. **1:25-1:55** — Show retrieval scores, importance, strength, and forgetting behavior.
-5. **1:55-2:25** — Show Qwen Cloud response using memory context.
-6. **2:25-2:45** — Show Alibaba Cloud backend proof separately or point to the separate proof recording.
-7. **2:45-3:00** — Summarize impact: persistent memory, timely forgetting, context-window-efficient recall.
+1. **0:00-0:20** — Introduce Track 1: MemoryAgent and the problem: agents forget, while raw chat history bloats prompts.
+2. **0:20-0:45** — Show MemoryAgent storing and recalling a preference across sessions.
+3. **0:45-1:10** — Show stale preference replacement: archived old memory, current superseding memory.
+4. **1:10-1:35** — Show Alfredo's Vault benchmark loaded: 25 users, 5,000 memories, 500 questions, 90 days simulated continuity.
+5. **1:35-2:20** — Show benchmark highlights: temporal recall, contradiction update, expired-memory filtering, low-confidence abstention, and prompt-injection resistance.
+6. **2:20-2:40** — Show CLI/MCP/Qwen Cloud integration path using the same SQLite-backed vault.
+7. **2:40-3:00** — Summarize impact: large durable vault, small trusted recall packet, safer memory for agents.
 
 ## Suggested Devpost text description
 
 MemoryAgent is a persistent memory system for Qwen Cloud agents. It lets an AI assistant accumulate experience across sessions, remember user preferences, retrieve critical memories within a limited context window, and forget stale or low-value information over time.
 
-The system uses SQLite for durable storage, sentence-transformer embeddings for semantic search, multi-factor scoring for recall quality, Maximum Marginal Relevance for diversity, and an Ebbinghaus-inspired forgetting curve for decay and archival. The agent can run locally through the CLI, integrate with MCP clients, or connect to Qwen Cloud through an OpenAI-compatible LLM connector. The Alibaba Cloud deployment proof code demonstrates how the backend is verified on Alibaba Cloud and how Qwen Cloud APIs are used.
+The system uses SQLite for durable storage, sentence-transformer embeddings for semantic search, multi-factor scoring for recall quality, Maximum Marginal Relevance for diversity, and an Ebbinghaus-inspired forgetting curve for decay and archival. The project also includes Alfredo's Vault benchmark, a fully synthetic sustained-memory benchmark with 25 users, 5,000 JSONL memories, and 500 evaluation questions. The benchmark validates temporal recall, contradiction resolution, ignored-memory filtering, low-confidence abstention, and prompt-injection resistance. The agent can run locally through the CLI, integrate with MCP clients, or connect to Qwen Cloud through an OpenAI-compatible LLM connector. The Alibaba Cloud deployment proof code demonstrates how the backend is verified on Alibaba Cloud and how Qwen Cloud APIs are used.
 
 ## Judging criteria mapping
 
 | Criterion | How MemoryAgent addresses it |
 | --- | --- |
-| Technical Depth & Engineering (30%) | Uses Qwen Cloud's OpenAI-compatible API, MCP integration, SQLite WAL persistence, semantic embeddings, multi-factor retrieval scoring, Maximum Marginal Relevance, Ebbinghaus-inspired forgetting, reinforcement, and Alibaba Cloud deployment proof code. |
-| Innovation & AI Creativity (30%) | Implements a modular long-term memory layer for agents with autonomous memory extraction, context-window-efficient recall, stale-memory archival, and cross-session preference recall. |
-| Problem Value & Impact (25%) | Solves the real agent problem of forgetting user preferences and wasting prompt context on irrelevant history; can be reused by CLI agents, MCP clients, and Qwen Cloud applications. |
-| Presentation & Documentation (15%) | Includes `README.md`, `docs/ARCHITECTURE.md`, this `SUBMISSION.md`, demo video outline, Alibaba Cloud proof instructions, and a root `LICENSE` file. |
+| Technical Depth & Engineering (30%) | Uses Qwen Cloud's OpenAI-compatible API, MCP integration, SQLite WAL persistence, semantic embeddings, multi-factor retrieval scoring, Maximum Marginal Relevance, Ebbinghaus-inspired forgetting, reinforcement, a synthetic 5,000-memory benchmark, and Alibaba Cloud deployment proof code. |
+| Innovation & AI Creativity (30%) | Implements a modular long-term memory layer for agents with autonomous memory extraction, context-window-efficient recall, stale-memory archival, contradiction updates, low-confidence abstention, and prompt-injection resistance. |
+| Problem Value & Impact (25%) | Solves the real agent problem of forgetting user preferences and wasting prompt context on irrelevant or unsafe history; can be reused by CLI agents, MCP clients, and Qwen Cloud applications. |
+| Presentation & Documentation (15%) | Includes `README.md`, `docs/ARCHITECTURE.md`, this `SUBMISSION.md`, benchmark data, demo video outline, Alibaba Cloud proof instructions, and a root `LICENSE` file. |
 
 ### Technical Depth & Engineering details
 
@@ -86,6 +87,7 @@ The system uses SQLite for durable storage, sentence-transformer embeddings for 
 - **Custom agent memory stack**: `src/memory_agent/core/memory_store.py`, `src/memory_agent/core/retrieval.py`, and `src/memory_agent/core/forgetting.py` implement durable memory, semantic recall, reinforcement, and decay.
 - **MCP integration**: `src/memory_agent/integrations/mcp_server.py` exposes memory operations to MCP-compatible clients.
 - **Engineering verification**: tests cover storage, forgetting, retrieval, orchestrator behavior, QwenCloud provider wiring, and required submission artifacts.
+- **Vault benchmark**: `src/memory_agent/benchmark.py` and `benchmarks/alfredos_vault/` provide a deterministic synthetic benchmark for sustained-memory behavior, trust decisions, and security-event handling.
 
 #### Technical Depth answer for judges
 
@@ -135,12 +137,12 @@ The business value applies to customer support assistants, developer agents, exe
 
 ### Presentation & Documentation details
 
-- **README**: explains setup, demos, architecture overview, integrations, commands, QwenCloud usage, and hackathon submission links.
-- **Architecture diagram**: `docs/ARCHITECTURE.md` contains a Mermaid diagram showing Qwen Cloud, Alibaba Cloud backend, MemoryAgent core, SQLite, embeddings, retrieval, and forgetting.
+- **README**: explains setup, demos, architecture overview, integrations, benchmark commands, QwenCloud usage, and hackathon submission links.
+- **Architecture diagram**: `docs/ARCHITECTURE.md` contains a Mermaid diagram showing Qwen Cloud, Alibaba Cloud backend, MemoryAgent core, SQLite, embeddings, retrieval, benchmark evaluator, and forgetting.
 - **Submission guide**: `SUBMISSION.md` contains track, description, judging-criteria mapping, required URLs, proof-recording instructions, and demo-video outline.
 - **Deployment proof code**: `deploy/alibaba_cloud_proof.py` gives judges a concrete code file showing Alibaba Cloud and QwenCloud API usage.
 - **License**: root `LICENSE` file makes the repository visibly open source.
-- **Demo path**: `examples/demo_basic.py` and `examples/demo_multi_session.py` demonstrate memory creation, recall, and persistence.
+- **Demo and benchmark path**: `examples/demo_video.py` demonstrates memory creation, recall, benchmark scale, trust decisions, and integration readiness.
 
 #### Presentation answer for judges
 
@@ -148,16 +150,12 @@ The submission is documented for both judges and developers. Judges can start at
 
 ## Public repository requirement
 
-This local directory is not currently a Git repository. Before submission:
+Push the current branch to the public GitHub repository before Devpost submission:
 
 ```bash
-cd E:/CODE/MemoryAgent
-git init
-git add .
-git commit -m "feat: prepare MemoryAgent hackathon submission"
-git branch -M main
-git remote add origin https://github.com/AkiraTokashiki/Alfredo.git
-git push -u origin main
+git add README.md SUBMISSION.md docs/ARCHITECTURE.md src/memory_agent/benchmark.py src/memory_agent/cli/commands.py src/memory_agent/core/memory_store.py examples/demo_video.py tests/test_benchmark.py benchmarks/alfredos_vault/
+git commit -m "feat: add Alfredo Vault benchmark"
+git push origin main
 ```
 
 Then make the repository public and confirm the repository About panel detects the MIT license.

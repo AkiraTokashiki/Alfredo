@@ -19,7 +19,9 @@ Alfredo is a MemoryAgent that gives Qwen Cloud agents persistent, selective memo
 | **Auto-extraction** | Detects preferences ("I like X"), habits, and facts from natural conversation |
 | **MCP native** | Drop-in integration with Hermes, Claude Desktop, Cursor — any MCP client |
 | **Multi-session** | Memories persist across sessions, survive restarts |
-| **43 tests** | Full coverage of storage, forgetting curve, retrieval, and agent loop |
+| **Vault benchmark** | Synthetic sustained-memory benchmark: 25 users, 5,000 memories, 500 evaluation questions |
+| **Trust decisions** | Filters expired, forgotten, superseded, low-confidence, and prompt-injection memories before prompt injection |
+| **Automated tests** | Coverage for storage, forgetting curve, retrieval, agent loop, video demo, and the vault benchmark |
 
 ---
 
@@ -108,8 +110,52 @@ This demo shows the complete memory lifecycle:
 1. learns a user preference in one session;
 2. recalls it in a later session;
 3. archives the stale preference when the user changes it;
-4. keeps critical memories inside a bounded recall context even after low-importance noise is added;
-5. prints active/archived memory stats for judging.
+4. explains that the SQLite vault can be large while each prompt receives only a small recall packet;
+5. runs the synthetic Alfredo's Vault benchmark for judge-friendly proof.
+
+### No-voice Devpost video demo
+
+For screen recording with large terminal captions:
+
+```bash
+python examples/demo_video.py
+```
+
+Open PowerShell or CMD full screen, increase the font size, run the command,
+and record the terminal output. The script uses large English captions and
+pauses between scenes, so it works without voiceover. The recording is designed
+to stay around 1.5-2 minutes, safely under the 3-minute Devpost limit.
+
+### Alfredo's Vault benchmark
+
+The benchmark uses only synthetic data: 25 fictional users, 5,000 JSONL
+memories, and 500 evaluation questions covering temporal recall,
+contradiction updates, expiry, explicit forgetting, low-confidence
+abstention, sensitive-memory boundaries, and prompt-injection resistance.
+
+Seed the benchmark into SQLite:
+
+```bash
+python -m memory_agent --db .alfredo/vault_benchmark.db benchmark seed \
+  --users benchmarks/alfredos_vault/users.json \
+  --memories benchmarks/alfredos_vault/memories.jsonl \
+  --expected-users 25 \
+  --expected-memories 5000
+```
+
+Evaluate the seeded vault:
+
+```bash
+python -m memory_agent --db .alfredo/vault_benchmark.db benchmark run \
+  --users benchmarks/alfredos_vault/users.json \
+  --questions benchmarks/alfredos_vault/evaluation_questions.jsonl \
+  --report benchmarks/alfredos_vault/benchmark_report.json \
+  --expected-users 25 \
+  --expected-questions 500
+```
+
+The report records per-question answers, retrieved memory IDs, ignored memory
+IDs, confidence, behavior detected, pass/fail status, and security events.
 
 ### 3. Interactive chat
 
@@ -201,10 +247,11 @@ src/memory_agent/
 │   ├── orchestrator.py        # Perceive → extract → retrieve → decay
 │   └── decision.py            # NLP extraction of preferences/facts
 ├── cli/                       # Interactive CLI (Click)
-│   └── commands.py            # chat, stats, search, mcp, llm
+│   └── commands.py            # chat, stats, search, benchmark, mcp, llm
 ├── integrations/              # Extensions
 │   ├── mcp_server.py          # MCP server (stdio + HTTP)
 │   └── llm_connector.py       # DeepSeek/OpenAI/Anthropic connector
+├── benchmark.py               # Synthetic vault benchmark loader/evaluator
 └── __main__.py                # Entry point
 ```
 
@@ -213,12 +260,12 @@ src/memory_agent/
 ## 🧪 Test Suite
 
 ```
-43 passed in ~25s
-
-tests/test_memory_store.py  — 14 tests (CRUD, embeddings, tags, sessions)
-tests/test_forgetting.py    — 12 tests (curve, reinforce, archival, lifespan)
-tests/test_retrieval.py     —  8 tests (scoring, MMR, filters, access tracking)
-tests/test_agent.py         —  9 tests (full cycle, multi-session, stats)
+tests/test_memory_store.py   — SQLite CRUD, embeddings, tags, sessions
+tests/test_forgetting.py     — forgetting curve, reinforcement, archival
+tests/test_retrieval.py      — scoring, MMR, filters, access tracking
+tests/test_agent.py          — full memory cycle, multi-session recall, stats
+tests/test_benchmark.py      — vault benchmark loading, seeding, trust-policy evaluation
+tests/test_video_demo.py     — no-voice Devpost benchmark demo smoke tests
 ```
 
 ```bash
@@ -249,6 +296,7 @@ See [INTEGRATION.md](./INTEGRATION.md) for full details.
 - **Architecture diagram**: [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
 - **Submission checklist and description**: [`SUBMISSION.md`](./SUBMISSION.md).
 - **Alibaba Cloud proof code**: [`deploy/alibaba_cloud_proof.py`](./deploy/alibaba_cloud_proof.py).
+- **Vault benchmark**: [`benchmarks/alfredos_vault/`](./benchmarks/alfredos_vault/) contains synthetic users, 5,000 memories, 500 evaluation questions, and generated reports.
 - **License**: [`LICENSE`](./LICENSE), MIT.
 
 Before submitting to Devpost, publish this repository publicly, upload the demo video to YouTube/Vimeo/Facebook Video, and add the final URLs to `SUBMISSION.md`.
@@ -268,6 +316,13 @@ In the interactive CLI:
 /quit       — Exit
 ```
 
+Benchmark CLI:
+
+```bash
+python -m memory_agent --db .alfredo/vault_benchmark.db benchmark seed --users benchmarks/alfredos_vault/users.json --memories benchmarks/alfredos_vault/memories.jsonl
+python -m memory_agent --db .alfredo/vault_benchmark.db benchmark run --users benchmarks/alfredos_vault/users.json --questions benchmarks/alfredos_vault/evaluation_questions.jsonl --report benchmarks/alfredos_vault/benchmark_report.json
+```
+
 ---
 
 ## 🛠 Tech Stack
@@ -278,7 +333,7 @@ In the interactive CLI:
 - **NumPy** (cosine similarity, MMR)
 - **MCP SDK** (Model Context Protocol)
 - **Click** (CLI)
-- **Pytest** (43 tests)
+- **Pytest**
 
 ---
 
@@ -291,7 +346,8 @@ MIT — use it, fork it, hack it.
 ## 🏆 Hackathon Tips
 
 - **Demo in 30 seconds**: `python examples/demo_basic.py`
+- **Show benchmarked scale**: run `python examples/demo_video.py` to show 25 users, 5,000 memories, 500 questions, and trust-policy decisions
 - **Show persistence**: run `demo_multi_session.py` to prove cross-session recall
-- **Show forgetting**: importance 0.3 memories decay in ~3 days
-- **Show retrieval quality**: "I use Linux" vs "prefer Windows" — the semantic search finds the right one
+- **Show forgetting**: use the benchmark expiry/forgotten-memory cases
+- **Show retrieval quality**: show source, date, confidence, supersession, and ignored-memory reasons
 - **MCP integration demo**: connect to Hermes, ask about a preference from a previous session

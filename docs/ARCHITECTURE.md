@@ -2,7 +2,7 @@
 
 MemoryAgent is submitted to **Track 1: MemoryAgent** of the Global AI Hackathon Series with Qwen Cloud.
 
-The project provides persistent, cross-session memory for an AI agent. It stores user preferences, facts, and interaction summaries in SQLite, retrieves relevant memories with semantic embeddings and multi-factor ranking, reinforces useful memories, and archives stale memories through a forgetting curve.
+The project provides persistent, cross-session memory for an AI agent. It stores user preferences, facts, and interaction summaries in SQLite, retrieves relevant memories with semantic embeddings and multi-factor ranking, reinforces useful memories, archives stale memories through a forgetting curve, and includes a synthetic vault benchmark for sustained-memory behavior.
 
 Rendered diagram asset: [`docs/architecture.svg`](./architecture.svg).
 
@@ -20,9 +20,11 @@ flowchart LR
     Core --> Retrieve[Semantic Retrieval + MMR]
     Core --> Forget[Forgetting Curve + Reinforcement]
     Core --> Store[SQLite Memory Store]
+    Core --> Trust[Trust Policy: Expiry, Supersedes, Confidence, Security]
 
     Store --> DB[(Persistent SQLite Database)]
     Retrieve --> Embed[Sentence Transformer Embeddings]
+    Store --> Bench[Alfredo Vault Benchmark\\n25 users / 5,000 memories / 500 questions]
 
     MCP --> Qwen[Qwen Cloud OpenAI-Compatible Chat API]
     Backend --> Alibaba[Alibaba Cloud Function Compute / ECS Runtime]
@@ -40,6 +42,7 @@ flowchart LR
 5. Qwen Cloud generates the response using the current message plus memory context.
 6. MemoryAgent stores the interaction, reinforces memories that were recalled, and decays stale memories.
 7. Across later sessions, the same database lets the agent recall previous preferences and avoid filling the context window with irrelevant history.
+8. For benchmark runs, the same SQLite vault is seeded from synthetic JSON/JSONL data and evaluated against 500 questions that test temporal recall, contradiction updates, ignored-memory filtering, low-confidence abstention, and prompt-injection resistance.
 
 ## Core components
 
@@ -52,6 +55,7 @@ flowchart LR
 | Forgetting | `src/memory_agent/core/forgetting.py` | Applies Ebbinghaus decay and reinforcement. |
 | LLM connector | `src/memory_agent/integrations/llm_connector.py` | Sends memory-augmented prompts to Qwen Cloud or another OpenAI-compatible provider. |
 | Alibaba proof | `deploy/alibaba_cloud_proof.py` | Demonstrates the deployment/runtime checks for Alibaba Cloud and Qwen Cloud APIs. |
+| Vault benchmark | `src/memory_agent/benchmark.py` | Loads synthetic benchmark data, seeds SQLite, evaluates trust-policy questions, and writes reports. |
 
 ## Alibaba Cloud deployment target
 
