@@ -579,6 +579,56 @@ def benchmark_run(
     click.echo(f"Report: {report_path}")
 
 
+@benchmark.command("compare")
+@click.option("--offline", "offline_requested", is_flag=True, help="Use deterministic offline baselines without external APIs.")
+@click.option("--users", "users_path", required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path), help="Path to USERS_JSON.")
+@click.option("--memories", "memories_path", required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path), help="Path to MEMORIES_JSONL.")
+@click.option("--questions", "questions_path", required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path), help="Path to EVALUATION_QUESTIONS_JSONL.")
+@click.option("--report", "report_path", required=True, type=click.Path(dir_okay=False, path_type=Path), help="Where to write comparison report JSON.")
+@click.option("--seed", type=int, default=0, show_default=True, help="Reproducibility seed.")
+@click.option("--run", "run_id", default="local", show_default=True, help="Stable run identifier.")
+@click.option("--expected-users", type=int, default=None, help="Exact expected user count.")
+@click.option("--expected-memories", type=int, default=None, help="Exact expected memory count.")
+@click.option("--expected-questions", type=int, default=None, help="Exact expected question count.")
+@click.pass_context
+def benchmark_compare(
+    ctx: click.Context,
+    users_path: Path,
+    memories_path: Path,
+    questions_path: Path,
+    report_path: Path,
+    seed: int,
+    run_id: str,
+    offline_requested: bool,
+    expected_users: int | None,
+    expected_memories: int | None,
+    expected_questions: int | None,
+) -> None:
+    """Compare all three offline memory retrieval strategies."""
+    configured_offline = ctx.obj.get("config").embedding.provider == "deterministic"
+    if not offline_requested and not configured_offline:
+        raise click.UsageError("benchmark compare requires explicit --offline")
+    from memory_agent.benchmark import compare_benchmarks, load_memories_jsonl, load_questions_jsonl, load_users
+
+    users = load_users(users_path, expected_count=expected_users)
+    memories = load_memories_jsonl(memories_path, expected_count=expected_memories)
+    questions = load_questions_jsonl(questions_path, expected_count=expected_questions)
+    report = compare_benchmarks(
+        users,
+        memories,
+        questions,
+        seed=seed,
+        run_id=run_id,
+        offline=bool(offline_requested or ctx.obj.get("config").embedding.provider == "deterministic"),
+        report_path=report_path,
+    )
+    click.echo("ALFREDO VAULT BENCHMARK COMPARISON")
+    click.echo(f"Strategies: {', '.join(report['strategies'])}")
+    click.echo(f"Seed: {report['seed']}")
+    click.echo(f"Run: {report['run_id']}")
+    click.echo(f"Report: {report_path}")
+
+
 @cli.command()
 @click.option("--http", is_flag=True, help="Run in HTTP mode instead of stdio")
 @click.option("--host", default="localhost", help="HTTP host (default: localhost)")
