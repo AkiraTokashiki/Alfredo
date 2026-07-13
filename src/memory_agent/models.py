@@ -3,9 +3,42 @@
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
+
+
+def _json_safe(value: Any, _seen: set[int] | None = None) -> Any:
+    """Copy supported values into JSON-safe Python primitives."""
+    seen = _seen if _seen is not None else set()
+    if value is None or isinstance(value, (str, bool, int)):
+        return value
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError("JSON-safe floats must be finite")
+        return value
+    if isinstance(value, (list, tuple)):
+        marker = id(value)
+        if marker in seen:
+            raise ValueError("JSON-safe values cannot contain cycles")
+        seen.add(marker)
+        try:
+            return [_json_safe(item, seen) for item in value]
+        finally:
+            seen.remove(marker)
+    if isinstance(value, dict):
+        marker = id(value)
+        if marker in seen:
+            raise ValueError("JSON-safe values cannot contain cycles")
+        seen.add(marker)
+        try:
+            if not all(isinstance(key, str) for key in value):
+                raise TypeError("JSON-safe object keys must be strings")
+            return {key: _json_safe(item, seen) for key, item in value.items()}
+        finally:
+            seen.remove(marker)
+    raise TypeError(f"value of type {type(value).__name__} is not JSON-safe")
 
 
 @dataclass
@@ -49,7 +82,7 @@ class MemoryRecord:
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-safe public representation."""
-        return {
+        return _json_safe({
             "id": self.id,
             "content": self.content,
             "memory_type": self.memory_type,
@@ -68,7 +101,7 @@ class MemoryRecord:
             "source": self.source,
             "superseded_by": self.superseded_by,
             "last_decision_reason": self.last_decision_reason,
-        }
+        })
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> MemoryRecord:
@@ -118,11 +151,25 @@ class RetrievalEvidence:
     reason: str = ""
 
     def __post_init__(self) -> None:
+        for field_name in (
+            "score",
+            "semantic_score",
+            "recency_score",
+            "importance_score",
+            "strength_score",
+        ):
+            value = getattr(self, field_name)
+            try:
+                is_finite = math.isfinite(value)
+            except TypeError as exc:
+                raise ValueError(f"{field_name} must be finite") from exc
+            if not is_finite:
+                raise ValueError(f"{field_name} must be finite")
         object.__setattr__(self, "matched_by", tuple(self.matched_by))
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-safe public representation."""
-        return {
+        return _json_safe({
             "score": self.score,
             "semantic_score": self.semantic_score,
             "recency_score": self.recency_score,
@@ -131,7 +178,7 @@ class RetrievalEvidence:
             "matched_by": list(self.matched_by),
             "trust": self.trust,
             "reason": self.reason,
-        }
+        })
 
 
 @dataclass
@@ -153,7 +200,7 @@ class SearchResult:
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-safe public representation."""
-        return {
+        return _json_safe({
             "memory": self.memory.to_dict(),
             "score": self.score,
             "semantic_score": self.semantic_score,
@@ -161,7 +208,7 @@ class SearchResult:
             "importance_score": self.importance_score,
             "strength_score": self.strength_score,
             "evidence": self.evidence.to_dict() if self.evidence else None,
-        }
+        })
 
 
 @dataclass

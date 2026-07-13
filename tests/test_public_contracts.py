@@ -24,6 +24,41 @@ def test_public_ports_are_runtime_checkable_protocols(port):
     assert port._is_runtime_protocol is True
 
 
+def test_embedding_port_exposes_vector_operations():
+    assert hasattr(EmbeddingPort, "decode_vector")
+    assert hasattr(EmbeddingPort, "cosine_similarity")
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "score",
+        "semantic_score",
+        "recency_score",
+        "importance_score",
+        "strength_score",
+    ],
+)
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_retrieval_evidence_rejects_non_finite_scores(field, value):
+    with pytest.raises(ValueError, match="finite"):
+        RetrievalEvidence(**{field: value})
+
+
+def test_memory_record_to_dict_copies_nested_metadata_and_rejects_non_json_values():
+    metadata = {"nested": {"items": ["public"]}}
+    memory = MemoryRecord(content="safe", metadata=metadata)
+
+    payload = memory.to_dict()
+    payload["metadata"]["nested"]["items"].append("copy")
+
+    assert metadata == {"nested": {"items": ["public"]}}
+    assert json.loads(json.dumps(payload, allow_nan=False)) == payload
+
+    invalid = MemoryRecord(content="invalid", metadata={"private": object()})
+    with pytest.raises(TypeError, match="JSON-safe"):
+        invalid.to_dict()
+
 
 def test_memory_record_legacy_constructor_defaults_remain_compatible():
     memory = MemoryRecord(content="legacy memory")

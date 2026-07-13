@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from .models import MemoryRecord, RetrievalEvidence, SearchResult
 
@@ -32,6 +32,13 @@ class EmbeddingPort(Protocol):
 
     def encode(self, text: str) -> bytes:
         """Encode text into a provider-specific serialized vector."""
+        ...
+    def decode_vector(self, blob: bytes) -> Any:
+        """Decode a provider-specific vector representation."""
+        ...
+
+    def cosine_similarity(self, left: Any, right: Any) -> float:
+        """Return cosine similarity for two decoded vectors."""
         ...
 
 
