@@ -46,7 +46,15 @@ class MemoryConsolidator:
         self.similarity = similarity
         self.config = config
 
-    def consolidate(self, candidate: MemoryRecord) -> ConsolidationDecision:
+    def consolidate(
+        self,
+        candidate: MemoryRecord,
+        *,
+        namespace: str | None = None,
+        commit: bool = True,
+    ) -> ConsolidationDecision:
+        active_namespace = namespace if namespace is not None else candidate.namespace
+        candidate.namespace = active_namespace
         if candidate.importance < self.config.auto_consolidate_threshold:
             return ConsolidationDecision(
                 action=ConsolidationAction.IGNORE,
@@ -54,12 +62,15 @@ class MemoryConsolidator:
                 reason="candidate below auto-consolidation threshold",
             )
 
-        active = self.store.get_all_active_memories()
+        active = self.store.get_all_active_memories(namespace=active_namespace)
         same_type = [m for m in active if m.memory_type == candidate.memory_type]
         best = self._best_match(candidate, same_type)
 
         if best is None:
-            new_id = self.store.add_memory(candidate, commit=False)
+            new_id = self.store.add_memory(
+                candidate, namespace=active_namespace, commit=commit
+            )
+            candidate.id = new_id
             return ConsolidationDecision(
                 action=ConsolidationAction.CREATE,
                 candidate=candidate,
@@ -69,13 +80,18 @@ class MemoryConsolidator:
 
         existing, score = best
         if self._supersedes(existing, candidate, score):
-            new_id = self.store.add_memory(candidate, commit=False)
+            new_id = self.store.add_memory(
+                candidate, namespace=active_namespace, commit=commit
+            )
+            candidate.id = new_id
             candidate.metadata = {
                 **candidate.metadata,
                 "supersedes": existing.id,
                 "consolidation_action": "update",
             }
-            self.store.update_memory(candidate, commit=False)
+            self.store.update_memory(
+                candidate, namespace=active_namespace, commit=commit
+            )
             self.store.archive_memory(
                 existing.id or -1,
                 reason="superseded",
@@ -83,7 +99,8 @@ class MemoryConsolidator:
                     "superseded_by": new_id,
                     "superseded_at": datetime.now().isoformat(),
                 },
-                commit=False,
+                namespace=active_namespace,
+                commit=commit,
             )
             return ConsolidationDecision(
                 action=ConsolidationAction.UPDATE,
@@ -102,7 +119,9 @@ class MemoryConsolidator:
                 "consolidation_action": "reinforce",
                 "last_duplicate": candidate.content,
             }
-            self.store.update_memory(existing, commit=False)
+            self.store.update_memory(
+                existing, namespace=active_namespace, commit=commit
+            )
             return ConsolidationDecision(
                 action=ConsolidationAction.REINFORCE,
                 candidate=candidate,
@@ -110,7 +129,10 @@ class MemoryConsolidator:
                 reason=f"duplicate similarity {score:.3f}",
             )
 
-        new_id = self.store.add_memory(candidate, commit=False)
+        new_id = self.store.add_memory(
+            candidate, namespace=active_namespace, commit=commit
+        )
+        candidate.id = new_id
         return ConsolidationDecision(
             action=ConsolidationAction.CREATE,
             candidate=candidate,
@@ -118,16 +140,23 @@ class MemoryConsolidator:
             reason=f"best similarity {score:.3f} did not trigger consolidation",
         )
 
-    def forget_matching(self, query: str) -> int:
+    def forget_matching(
+        self,
+        query: str,
+        *,
+        namespace: str | None = None,
+        commit: bool = True,
+    ) -> int:
         archived = 0
-        for memory in self.store.get_all_active_memories():
+        for memory in self.store.get_all_active_memories(namespace=namespace):
             score = self.similarity.similarity(query, memory.content)
             if score >= self.config.explicit_forget_min_score and memory.id is not None:
                 self.store.archive_memory(
                     memory.id,
                     reason="explicit_user_request",
                     metadata={"forget_query": query},
-                    commit=False,
+                    namespace=namespace,
+                    commit=commit,
                 )
                 archived += 1
         return archived

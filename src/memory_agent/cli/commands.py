@@ -2,28 +2,38 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
+import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import click
 
+from memory_agent.core.config import MemoryAgentConfig
+from memory_agent.core.embeddings import create_embedding_engine
+from memory_agent.core.memory_store import MemoryStore
+
+logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from memory_agent.agent.orchestrator import MemoryAgent
-from memory_agent.core.config import MemoryAgentConfig
-from memory_agent.core.memory_store import MemoryStore
 
 
 @click.group()
 @click.option("--db", default=None, help="Path to SQLite database file")
+@click.option(
+    "--offline",
+    is_flag=True,
+    help="Use deterministic hashed-token embeddings without model downloads",
+)
 @click.option(
     "--model",
     default=None,
     help="Embedding model name (sentence-transformers)",
 )
 @click.pass_context
-def cli(ctx: click.Context, db: str | None, model: str | None) -> None:
+def cli(ctx: click.Context, db: str | None, model: str | None, offline: bool) -> None:
     """MemoryAgent — persistent memory for AI agents.
 
     An agent that accumulates experience autonomously, remembers
@@ -39,13 +49,15 @@ def cli(ctx: click.Context, db: str | None, model: str | None) -> None:
         db_path = Path(config.db_path).expanduser().resolve()
     if model:
         config.embedding.model_name = model
+    if offline:
+        config.embedding.provider = "deterministic"
 
     # Subcommands create MemoryAgent lazily. Benchmark commands can seed/evaluate
     # SQLite without loading an embedding model.
     ctx.obj["config"] = config
     ctx.obj["db_path"] = db_path
+    ctx.obj["db_explicit"] = db is not None
     ctx.obj["agent"] = None
-
 
 
 def _get_agent(ctx: click.Context) -> MemoryAgent:
@@ -53,7 +65,18 @@ def _get_agent(ctx: click.Context) -> MemoryAgent:
     if agent is None:
         from memory_agent.agent.orchestrator import MemoryAgent
 
-        agent = MemoryAgent(config=ctx.obj["config"], db_path=ctx.obj["db_path"])
+        config = ctx.obj["config"]
+        embedder = create_embedding_engine(
+            provider=config.embedding.provider,
+            model_name=config.embedding.model_name,
+            dimension=config.embedding.dimension,
+            cache_size=config.embedding.cache_size,
+        )
+        agent = MemoryAgent(
+            config=config,
+            db_path=ctx.obj["db_path"],
+            embedder=embedder,
+        )
         ctx.obj["agent"] = agent
     return agent
 
@@ -61,6 +84,63 @@ def _get_agent(ctx: click.Context) -> MemoryAgent:
 # ------------------------------------------------------------------
 # Commands
 # ------------------------------------------------------------------
+
+@cli.command()
+@click.pass_context
+def quickstart(ctx: click.Context) -> None:
+    """Run a temporary SQLite cross-turn recall without external services."""
+    config = ctx.obj["config"]
+    if config.embedding.provider != "deterministic":
+        raise click.UsageError("quickstart requires the explicit --offline option")
+
+    original_db_path = ctx.obj["db_path"]
+    use_temporary_db = not ctx.obj.get("db_explicit", False)
+    temporary = tempfile.TemporaryDirectory(prefix="memory-agent-quickstart-")
+    agent = None
+    session_active = False
+    try:
+        if use_temporary_db:
+            ctx.obj["db_path"] = Path(temporary.name) / "memory.db"
+        agent = _get_agent(ctx)
+        agent.init_session(label="quickstart")
+        session_active = True
+        agent.perceive("I prefer Python for automation")
+        agent.end_session()
+        session_active = False
+
+        agent.init_session(label="quickstart-recall")
+        session_active = True
+        result = agent.perceive("What programming language do I prefer?")
+        recalled = result["recollection_text"]
+        click.echo("Offline quickstart (deterministic embeddings)")
+        if not recalled:
+            raise click.ClickException(
+                "Quickstart could not recall the stored memory from SQLite"
+            )
+        click.echo("Remembered:")
+        click.echo(recalled)
+        click.echo(f"SQLite vault: {ctx.obj['db_path']}")
+    finally:
+        primary_active = sys.exc_info()[0] is not None
+        cleanup_error: BaseException | None = None
+
+        def run_cleanup(action) -> None:
+            nonlocal cleanup_error
+            try:
+                action()
+            except BaseException as exc:
+                logger.debug("quickstart cleanup step failed", exc_info=True)
+                if cleanup_error is None:
+                    cleanup_error = exc
+
+        if agent is not None and session_active:
+            run_cleanup(agent.end_session)
+        if agent is not None:
+            run_cleanup(agent.store.close)
+        run_cleanup(lambda: ctx.obj.__setitem__("db_path", original_db_path))
+        run_cleanup(temporary.cleanup)
+        if not primary_active and cleanup_error is not None:
+            raise cleanup_error
 
 
 @cli.command()
@@ -156,10 +236,21 @@ def _handle_command(agent: MemoryAgent, cmd: str) -> None:
             print(f"    {level}: ~{days} days")
 
     elif command == "/memories":
-        memories = agent.store.get_all_active_memories()
+        memories = agent.list_memories()
         if not memories:
             print("  No memories.")
-            return
+        namespace = getattr(agent, "namespace", None)
+        print(f"  Namespace: {namespace}")
+        print("  Lifecycle: active")
+        print(f"  Selected IDs: {[m.id for m in memories[:20]]}")
+        print("  Dropped IDs: []")
+        for memory in memories[:20]:
+            evidence = agent.explain_memory(memory)
+            print(
+                f"  Evidence #{memory.id}: "
+                f"trust={evidence.get('trust', 'unknown')} "
+                f"reason={evidence.get('reason', 'active memory')}"
+            )
         print(f"\n  Active memories ({len(memories)}):")
         print(f"  {'─' * 40}")
         for m in memories[:20]:
@@ -172,24 +263,48 @@ def _handle_command(agent: MemoryAgent, cmd: str) -> None:
         if not arg:
             print("  Use: /search <query>")
             return
-        results = agent.retrieval.retrieve(arg, top_k=5)
+        payload = agent.search_memories(arg, top_k=5)
+        results = payload.get("results", [])
         if not results:
             print("  No results.")
-            return
         print(f"\n  Search results for '{arg}':")
         print(f"  {'─' * 40}")
-        for r in results:
-            m = r.memory
-            print(f"  #{m.id} [{m.memory_type}] (score={r.score:.3f})")
-            print(f"       {m.content[:80]}")
+        for item in results:
+            memory = item.get("memory", item)
+            memory_type = memory.get("memory_type", memory.get("type", "memory"))
+            print(f"  #{memory.get('id')} [{memory_type}] "
+                  f"(score={float(item.get('score', 0.0)):.3f})")
+            print(f"       {memory.get('content', '')[:80]}")
+        lifecycle = payload.get("lifecycle", {})
+        lifecycle_status = (
+            lifecycle.get("status", "searched")
+            if isinstance(lifecycle, dict)
+            else lifecycle
+        )
+        print(f"  Namespace: {payload.get('namespace')}")
+        print(f"  Lifecycle: {lifecycle_status}")
+        print(f"  Selected IDs: {payload.get('selected_ids', [])}")
+        print(f"  Dropped IDs: {payload.get('dropped_ids', [])}")
+        for evidence in payload.get("evidence", []):
+            print(
+                f"  Evidence #{evidence.get('id')}: "
+                f"trust={evidence.get('trust', 'unknown')} "
+                f"reason={evidence.get('reason', '')}"
+            )
 
     elif command == "/forget":
         if not arg or not arg.isdigit():
             print("  Use: /forget <memory_id>")
             return
         mid = int(arg)
-        agent.store.delete_memory(mid)
-        print(f"  Memory #{mid} deleted.")
+        result = agent.forget_memory(mid)
+        print(f"  Memory #{mid} {result.get('status', 'archived')}.")
+        print(f"  Namespace: {result.get('namespace')}")
+        print(f"  Lifecycle: {result.get('lifecycle', 'archived')}")
+        print(f"  Selected IDs: {result.get('selected_ids', [])}")
+        print(f"  Dropped IDs: {result.get('dropped_ids', [mid])}")
+        print(f"  Trust: {result.get('trust', 'unknown')}")
+        print(f"  Reason: {result.get('reason', '')}")
 
     else:
         print(f"  Unknown command: {command}. Type /help")
@@ -238,14 +353,21 @@ def _generate_response(
 
 
 @cli.command()
+@click.option("--namespace", default=None, help="Memory namespace")
 @click.pass_context
-def stats(ctx: click.Context) -> None:
-    """Show memory statistics without starting a session."""
+def stats(ctx: click.Context, namespace: str | None) -> None:
+    """Show namespace-scoped memory statistics without starting a session."""
     agent = _get_agent(ctx)
-    stats_data = agent.get_stats()
+    stats_data = agent.get_stats(namespace=namespace)
 
     click.echo("\n📊 MemoryAgent Statistics")
     click.echo("━" * 40)
+    click.echo(f"  Namespace:          {stats_data.get('namespace', namespace)}")
+    click.echo(f"  Lifecycle:          {stats_data.get('lifecycle', 'active')}")
+    if "trust" in stats_data:
+        click.echo(f"  Trust:              {stats_data['trust']}")
+    if "reason" in stats_data:
+        click.echo(f"  Reason:             {stats_data['reason']}")
     click.echo(f"  Active memories:   {stats_data['total_active']}")
     click.echo(f"  Archived:          {stats_data['archived']}")
     click.echo(f"  Embeddings:        {stats_data['embedding_count']}")
@@ -263,34 +385,66 @@ def stats(ctx: click.Context) -> None:
 @cli.command()
 @click.argument("query")
 @click.option("--top-k", default=5, help="Number of results")
+@click.option("--namespace", default=None, help="Memory namespace")
 @click.pass_context
-def search(ctx: click.Context, query: str, top_k: int) -> None:
-    """Semantic memory search."""
+def search(ctx: click.Context, query: str, top_k: int, namespace: str | None) -> None:
+    """Semantic memory search through the MemoryAgent facade."""
     agent = _get_agent(ctx)
-    results = agent.retrieval.retrieve(query, top_k=top_k)
-
-    if not results:
-        click.echo("  No matching memories found.")
-        return
+    payload = agent.search_memories(query, top_k=top_k, namespace=namespace)
+    results = payload.get("results", [])
 
     click.echo(f"\n  Search results for: '{query}'")
+    click.echo(f"  Namespace: {payload.get('namespace', namespace)}")
+    click.echo(f"  Lifecycle: {payload.get('lifecycle', {}).get('status', 'searched') if isinstance(payload.get('lifecycle'), dict) else payload.get('lifecycle', 'searched')}")
     click.echo("━" * 50)
-    for i, r in enumerate(results, 1):
-        m = r.memory
+    if not results:
+        click.echo("  No matching memories found.")
+    for i, item in enumerate(results, 1):
+        memory = item.get("memory", item)
+        memory_type = memory.get("memory_type", memory.get("type", "memory"))
+        score = item.get("score", 0.0)
+        trust = item.get("trust") or item.get("evidence", {}).get("trust", "unknown")
+        reason = item.get("reason") or item.get("evidence", {}).get("reason", "")
         click.echo(
-            f"  {i}. #{m.id} [{m.memory_type}] "
-            f"(score={r.score:.3f}, imp={m.importance:.1f})"
+            f"  {i}. #{memory.get('id')} [{memory_type}] "
+            f"(score={float(score):.3f}, imp={float(memory.get('importance', 0.0)):.1f}, trust={trust})"
         )
-        click.echo(f"     {m.content[:80]}")
+        click.echo(f"     {memory.get('content', '')[:80]}")
+        if reason:
+            click.echo(f"     Reason: {reason}")
         click.echo()
+    click.echo(f"  Selected IDs: {payload.get('selected_ids', [])}")
+    click.echo(f"  Dropped IDs: {payload.get('dropped_ids', [])}")
+    for evidence in payload.get("evidence", []):
+        click.echo(
+            f"  Evidence #{evidence.get('id')}: trust={evidence.get('trust', 'unknown')} "
+            f"reason={evidence.get('reason', '')}"
+        )
+
+
 
 
 @cli.command()
+@click.argument("memory_id", type=int)
+@click.option("--namespace", default=None, help="Memory namespace")
 @click.pass_context
-def memories(ctx: click.Context) -> None:
-    """List all active memories."""
+def forget(ctx: click.Context, memory_id: int, namespace: str | None) -> None:
+    """Archive a memory through the MemoryAgent facade."""
     agent = _get_agent(ctx)
-    all_memories = agent.store.get_all_active_memories()
+    payload = agent.forget_memory(memory_id, namespace=namespace)
+    click.echo(f"  Memory #{memory_id}: {payload.get('status', 'archived')}")
+    click.echo(f"  Namespace: {payload.get('namespace', namespace)}")
+    click.echo(f"  Lifecycle: {payload.get('lifecycle', 'archived')}")
+    click.echo(f"  Trust: {payload.get('trust', 'unknown')}")
+    click.echo(f"  Reason: {payload.get('reason', '')}")
+
+@cli.command()
+@click.option("--namespace", default=None, help="Memory namespace")
+@click.pass_context
+def memories(ctx: click.Context, namespace: str | None) -> None:
+    """List all active memories through the MemoryAgent facade."""
+    agent = _get_agent(ctx)
+    all_memories = agent.list_memories(namespace=namespace)
 
     if not all_memories:
         click.echo("  No memories stored.")
@@ -302,7 +456,7 @@ def memories(ctx: click.Context) -> None:
         click.echo(
             f"  #{m.id:<4} [{m.memory_type:<10}] "
             f"imp={m.importance:.2f} str={m.strength:.2f} "
-            f"acc={m.access_count}"
+            f"acc={m.access_count} namespace={m.namespace}"
         )
         click.echo(f"      {m.content[:80]}")
         click.echo()
@@ -422,6 +576,56 @@ def benchmark_run(
     click.echo(f"Failed: {metrics['failed']}")
     click.echo(f"Accuracy: {metrics['accuracy_percentage']:.2f}%")
     click.echo(f"Security events: {metrics['security_events']}")
+    click.echo(f"Report: {report_path}")
+
+
+@benchmark.command("compare")
+@click.option("--offline", "offline_requested", is_flag=True, help="Use deterministic offline baselines without external APIs.")
+@click.option("--users", "users_path", required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path), help="Path to USERS_JSON.")
+@click.option("--memories", "memories_path", required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path), help="Path to MEMORIES_JSONL.")
+@click.option("--questions", "questions_path", required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path), help="Path to EVALUATION_QUESTIONS_JSONL.")
+@click.option("--report", "report_path", required=True, type=click.Path(dir_okay=False, path_type=Path), help="Where to write comparison report JSON.")
+@click.option("--seed", type=int, default=0, show_default=True, help="Reproducibility seed.")
+@click.option("--run", "run_id", default="local", show_default=True, help="Stable run identifier.")
+@click.option("--expected-users", type=int, default=None, help="Exact expected user count.")
+@click.option("--expected-memories", type=int, default=None, help="Exact expected memory count.")
+@click.option("--expected-questions", type=int, default=None, help="Exact expected question count.")
+@click.pass_context
+def benchmark_compare(
+    ctx: click.Context,
+    users_path: Path,
+    memories_path: Path,
+    questions_path: Path,
+    report_path: Path,
+    seed: int,
+    run_id: str,
+    offline_requested: bool,
+    expected_users: int | None,
+    expected_memories: int | None,
+    expected_questions: int | None,
+) -> None:
+    """Compare all three offline memory retrieval strategies."""
+    configured_offline = ctx.obj.get("config").embedding.provider == "deterministic"
+    if not offline_requested and not configured_offline:
+        raise click.UsageError("benchmark compare requires explicit --offline")
+    from memory_agent.benchmark import compare_benchmarks, load_memories_jsonl, load_questions_jsonl, load_users
+
+    users = load_users(users_path, expected_count=expected_users)
+    memories = load_memories_jsonl(memories_path, expected_count=expected_memories)
+    questions = load_questions_jsonl(questions_path, expected_count=expected_questions)
+    report = compare_benchmarks(
+        users,
+        memories,
+        questions,
+        seed=seed,
+        run_id=run_id,
+        offline=bool(offline_requested or ctx.obj.get("config").embedding.provider == "deterministic"),
+        report_path=report_path,
+    )
+    click.echo("ALFREDO VAULT BENCHMARK COMPARISON")
+    click.echo(f"Strategies: {', '.join(report['strategies'])}")
+    click.echo(f"Seed: {report['seed']}")
+    click.echo(f"Run: {report['run_id']}")
     click.echo(f"Report: {report_path}")
 
 

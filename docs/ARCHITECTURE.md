@@ -75,3 +75,23 @@ https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
 ```
 
 Use `DASHSCOPE_API_KEY` in the deployed environment.
+## Public contracts and provider boundaries
+
+`MemoryAgent` is the stable facade. Storage, embedding, retrieval and trust
+providers are injected through small protocols; adapters never reimplement
+the memory lifecycle. SQLite is the default durable store. Provider name and
+dimension are checked before cosine similarity, so callers must reindex or
+use a separate database when providers differ.
+
+Retrieval returns explainable evidence: component scores, matched signals,
+trust classification, reason, selected IDs, dropped IDs and bounded-context
+accounting. A single perceive cycle commits through the store port after trust
+filtering, reinforcement and archival decisions complete.
+
+## Reproducible benchmark
+
+Run the offline comparison from the README with the checked-in synthetic
+fixtures. The report includes raw-history, semantic-RAG and Alfredo baselines,
+dataset/config hashes, seed/run identifiers, security events, context size and
+latency p50/p95. User records must carry `synthetic: true`; this marker is a
+benchmark input contract and is not a substitute for privacy review of data.

@@ -33,6 +33,17 @@ Then run `/reload-mcp` in the Hermes session. These tools become available:
 - `memory__forget` — delete/archive memory
 - `memory__reinforce` — reinforce a memory
 
+
+Todas las herramientas aceptan `namespace` opcional. El namespace se propaga por la
+fachada `MemoryAgent`, por lo que las búsquedas, estadísticas y operaciones de ciclo
+de vida nunca mezclan memorias de otros tenants. Por ejemplo, con stdio:
+
+```json
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"memory__search","arguments":{"query":"idioma preferido","namespace":"tenant-a"}}}
+```
+
+El mismo argumento funciona sin cambios en el transporte HTTP; el protocolo y los
+nombres de herramientas son idénticos.
 ### 1.2 HTTP service mode (for remote access)
 
 ```bash
@@ -48,6 +59,12 @@ mcp_servers:
   memory-agent:
     url: http://localhost:8090/mcp
 ```
+
+En HTTP, incluya `"namespace": "tenant-a"` en los argumentos JSON de
+`memory__perceive`, `memory__search`, `memory__store`, `memory__stats`,
+`memory__forget` o `memory__reinforce`. Las respuestas incluyen `namespace`,
+`selected_ids`, `dropped_ids`, evidencia de confianza (`trust` y `reason`) y el
+estado `lifecycle` cuando aplica.
 
 ### 1.3 Test the MCP server
 

@@ -111,6 +111,29 @@ def test_conflicting_preference_supersedes_existing(store: MemoryStore):
     assert stored_new.metadata["supersedes"] == old_id
 
 
+def test_direct_consolidation_persists_for_reopen(tmp_path: Path):
+    db_path = tmp_path / "consolidation.db"
+    store = MemoryStore(db_path)
+    store.initialize()
+    candidate = MemoryRecord(content="persisted direct fact", importance=0.9)
+    consolidator = MemoryConsolidator(
+        store,
+        FakeSimilarity(),
+        ConsolidationConfig(),
+    )
+
+    decision = consolidator.consolidate(candidate)
+    store.close()
+
+    reopened = MemoryStore(db_path)
+    reopened.initialize()
+    try:
+        assert decision.new_memory_id is not None
+        assert reopened.get_memory(decision.new_memory_id) is not None
+    finally:
+        reopened.close()
+
+
 def test_explicit_forget_archives_matching_memory(store: MemoryStore):
     memory_id = store.add_memory(
         MemoryRecord(content="The user prefers: Python", memory_type="preference")

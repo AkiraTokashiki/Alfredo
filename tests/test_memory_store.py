@@ -181,3 +181,40 @@ class TestMemoryStore:
         assert s.count_memories() == 1
         s.close()
         Path(db_path).unlink(missing_ok=True)
+
+    def test_new_fields_survive_add_read_update(self, store: MemoryStore):
+        """Namespace and decision metadata survive the full memory lifecycle."""
+        memory = MemoryRecord(
+            content="sensitive preference",
+            namespace="tenant-a",
+            confidence=0.72,
+            sensitivity="private",
+            source="user",
+            superseded_by="memory-42",
+            last_decision_reason="accepted by policy",
+        )
+        memory_id = store.add_memory(memory)
+
+        fetched = store.get_memory(memory_id, namespace="tenant-a")
+        assert fetched is not None
+        assert fetched.namespace == "tenant-a"
+        assert fetched.confidence == pytest.approx(0.72)
+        assert fetched.sensitivity == "private"
+        assert fetched.source == "user"
+        assert fetched.superseded_by == "memory-42"
+        assert fetched.last_decision_reason == "accepted by policy"
+
+        memory.confidence = 0.91
+        memory.sensitivity = "restricted"
+        memory.source = "reviewer"
+        memory.superseded_by = 99
+        memory.last_decision_reason = "manual override"
+        store.update_memory(memory, namespace="tenant-a")
+
+        updated = store.get_memory(memory_id, namespace="tenant-a")
+        assert updated is not None
+        assert updated.confidence == pytest.approx(0.91)
+        assert updated.sensitivity == "restricted"
+        assert updated.source == "reviewer"
+        assert updated.superseded_by == 99
+        assert updated.last_decision_reason == "manual override"
