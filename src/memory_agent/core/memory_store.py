@@ -142,6 +142,9 @@ class MemoryStore:
             "CREATE INDEX IF NOT EXISTS idx_memories_namespace ON memories(namespace)"
         )
         self.conn.commit()
+    def commit(self) -> None:
+        """Commit pending lifecycle mutations."""
+        self.conn.commit()
     # ------------------------------------------------------------------
     # Memory CRUD
     # ------------------------------------------------------------------
@@ -453,6 +456,35 @@ class MemoryStore:
             params.append(namespace)
         row = self.conn.execute(query, params).fetchone()
         return row[0]
+    def record_access(
+        self,
+        accesses: list[tuple[int, int]],
+        *,
+        namespace: str | None = None,
+        accessed_at: str | None = None,
+        commit: bool = True,
+    ) -> None:
+        """Persist access timestamps/counts without exposing SQL to adapters."""
+        now_iso = accessed_at or datetime.now().isoformat()
+        if namespace is None:
+            params = [(now_iso, count, memory_id) for memory_id, count in accesses]
+            self.conn.executemany(
+                "UPDATE memories SET last_accessed_at = ?, access_count = ? "
+                "WHERE id = ?",
+                params,
+            )
+        else:
+            params = [
+                (now_iso, count, memory_id, namespace)
+                for memory_id, count in accesses
+            ]
+            self.conn.executemany(
+                "UPDATE memories SET last_accessed_at = ?, access_count = ? "
+                "WHERE id = ? AND namespace = ?",
+                params,
+            )
+        if commit:
+            self.conn.commit()
 
     # ------------------------------------------------------------------
     def create_session(

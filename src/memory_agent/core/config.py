@@ -107,6 +107,12 @@ class EmbeddingConfig:
 
 
 @dataclass
+class TrustConfig:
+    """Trust policy defaults used before memories enter context."""
+
+    minimum_confidence: float = 0.5
+
+@dataclass
 class MemoryAgentConfig:
     """Top-level configuration."""
 
@@ -120,6 +126,7 @@ class MemoryAgentConfig:
     retrieval: RetrievalConfig = field(default_factory=RetrievalConfig)
     consolidation: ConsolidationConfig = field(default_factory=ConsolidationConfig)
     embedding: EmbeddingConfig = field(default_factory=EmbeddingConfig)
+    trust: TrustConfig = field(default_factory=TrustConfig)
 
     @classmethod
     def default(cls) -> MemoryAgentConfig:

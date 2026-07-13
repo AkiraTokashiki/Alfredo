@@ -11,17 +11,117 @@ from .models import MemoryRecord, RetrievalEvidence, SearchResult
 class MemoryStorePort(Protocol):
     """Persistence operations required by the memory lifecycle."""
 
-    def add_memory(self, memory: MemoryRecord, *, commit: bool = True) -> int:
-        """Persist a memory and return its identifier."""
-        ...
 
-    def get_memory(self, memory_id: int) -> MemoryRecord | None:
-        """Return a memory by identifier, or ``None`` when absent."""
-        ...
+    def initialize(self) -> None: ...
+    def close(self) -> None: ...
 
-    def update_memory(self, memory: MemoryRecord, *, commit: bool = True) -> None:
-        """Persist changes to an existing memory."""
-        ...
+    def commit(self) -> None: ...
+    def add_memory(
+        self,
+        memory: MemoryRecord,
+        *,
+        namespace: str | None = None,
+        commit: bool = True,
+    ) -> int: ...
+
+    def get_memory(
+        self, memory_id: int, *, namespace: str | None = None
+    ) -> MemoryRecord | None: ...
+
+    def update_memory(
+        self,
+        memory: MemoryRecord,
+        *,
+        namespace: str | None = None,
+        commit: bool = True,
+    ) -> None: ...
+
+    def get_all_active_memories(
+        self, *, namespace: str | None = None
+    ) -> list[MemoryRecord]: ...
+    def get_memories_by_type(
+        self, memory_type: str, *, namespace: str | None = None
+    ) -> list[MemoryRecord]: ...
+
+    def get_embedding(
+        self, memory_id: int, *, namespace: str | None = None
+    ) -> tuple[bytes, str] | None: ...
+
+    def archive_memory(
+        self,
+        memory_id: int,
+        *,
+        reason: str,
+        metadata: dict[str, Any] | None = None,
+        namespace: str | None = None,
+        commit: bool = True,
+    ) -> None: ...
+
+    def count_memories(
+        self, *, active_only: bool = True, namespace: str | None = None
+    ) -> int: ...
+
+    def create_session(
+        self,
+        label: str = "",
+        *,
+        namespace: str | None = None,
+        commit: bool = True,
+    ) -> int: ...
+
+    def end_session(
+        self,
+        session_id: int,
+        *,
+        namespace: str | None = None,
+        commit: bool = True,
+    ) -> None: ...
+
+    def link_memory_to_session(
+        self,
+        session_id: int,
+        memory_id: int,
+        turn_index: int | None = None,
+        *,
+        namespace: str | None = None,
+        commit: bool = True,
+    ) -> None: ...
+
+    def save_embedding(
+        self,
+        memory_id: int,
+        embedding: bytes,
+        model_name: str,
+        *,
+        namespace: str | None = None,
+        commit: bool = True,
+    ) -> None: ...
+
+    def update_strengths(
+        self,
+        updates: list[tuple[float, int]],
+        *,
+        namespace: str | None = None,
+        commit: bool = True,
+    ) -> None: ...
+
+    def archive_below_threshold(
+        self,
+        threshold: float,
+        *,
+        namespace: str | None = None,
+        commit: bool = True,
+    ) -> int: ...
+
+    def get_embedding_count(self, *, namespace: str | None = None) -> int: ...
+    def record_access(
+        self,
+        accesses: list[tuple[int, int]],
+        *,
+        namespace: str | None = None,
+        accessed_at: str | None = None,
+        commit: bool = True,
+    ) -> None: ...
 
 
 @runtime_checkable
@@ -55,6 +155,9 @@ class RetrievalPort(Protocol):
         use_mmr: bool = True,
         mmr_lambda: float | None = None,
         candidate_k: int | None = None,
+        namespace: str | None = None,
+        commit: bool = True,
+        record_access: bool = True,
     ) -> list[SearchResult]:
         """Return ranked candidates for a query."""
         ...

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
 
 import numpy as np
 
@@ -148,6 +147,8 @@ class RetrievalEngine:
         mmr_lambda: float | None = None,
         candidate_k: int | None = None,
         namespace: str | None = None,
+        commit: bool = True,
+        record_access: bool = True,
     ) -> list[SearchResult]:
         """Retrieve the most relevant memories for a query.
 
@@ -187,41 +188,30 @@ class RetrievalEngine:
         # Sort by score
         results.sort(key=lambda r: r.score, reverse=True)
 
-        if use_mmr and len(results) > candidate_k:
+        if use_mmr and len(results) > top_k:
             results = self._mmr_diversify(
                 results, query_vec, mmr_lambda, candidate_k, namespace=namespace
             )
         else:
             results = results[:candidate_k]
 
-        results = results[:top_k] if candidate_k == top_k else results
+        results = results[:top_k]
 
-        # Batch-update access tracking for retrieved memories
+        # Batch-update access tracking through the store contract.
         now_iso = datetime.now().isoformat()
-        updates: list[tuple[Any, ...]] = []
+        updates: list[tuple[int, int]] = []
         for r in results:
-            if r.memory.id is not None:
+            if r.memory.id is not None and record_access:
                 r.memory.access_count += 1
                 r.memory.last_accessed_at = now_iso
-                if namespace is None:
-                    updates.append((now_iso, r.memory.access_count, r.memory.id))
-                else:
-                    updates.append(
-                        (now_iso, r.memory.access_count, r.memory.id, namespace)
-                    )
-        if updates:
-            if namespace is None:
-                self.store.conn.executemany(
-                    "UPDATE memories SET last_accessed_at = ?, access_count = ? WHERE id = ?",
-                    updates,
-                )
-            else:
-                self.store.conn.executemany(
-                    "UPDATE memories SET last_accessed_at = ?, access_count = ? "
-                    "WHERE id = ? AND namespace = ?",
-                    updates,
-                )
-        self.store.conn.commit()
+                updates.append((r.memory.id, r.memory.access_count))
+        if record_access and updates:
+            self.store.record_access(
+                updates,
+                namespace=namespace,
+                accessed_at=now_iso,
+                commit=commit,
+            )
 
         return results
 
