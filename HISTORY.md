@@ -39,3 +39,19 @@
 - sentence-transformers 5.6.0 (`all-MiniLM-L6-v2`)
 - numpy, click, pytest
 - Editable install through setuptools
+
+## 2026-07-13
+
+### SDK and benchmark release candidate
+
+- Added public storage, embedding, retrieval and trust protocols with explainable evidence.
+- Added idempotent SQLite migration, namespace isolation, provider/dimension checks and explicit transaction boundaries.
+- Added deterministic offline embeddings and a five-minute local quickstart without API keys or model downloads.
+- Hardened CLI/MCP adapters so namespace, lifecycle, selected/dropped IDs and trust reasons remain visible through the public facade.
+- Added reproducible raw-history, semantic-RAG and Alfredo benchmark baselines with synthetic-only validation, supersession-aware scoring, security metrics, dataset/config hashes and latency/context aggregates.
+- Verified targeted release checks: 166 tests passed; offline quickstart completed; offline benchmark comparison produced all three strategies.
+
+### Scope notes
+
+- The managed multi-tenant platform, dashboard and billing remain out of scope for this release candidate.
+- Stars and adoption are not guaranteed by the implementation; distribution quality depends on documentation, integrations and community use.
