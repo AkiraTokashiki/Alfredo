@@ -22,6 +22,8 @@ import json
 import os
 import sys
 import threading
+from dataclasses import asdict, is_dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -59,11 +61,91 @@ def _get_agent() -> MemoryAgent:
     return _agent
 
 
-def _ensure_session() -> None:
-    """Auto-start a session if none active."""
+def _ensure_session(*, namespace: str | None = None) -> None:
+    """Auto-start a session if none active, preserving namespace isolation."""
     agent = _get_agent()
     if agent.state.session_id is None:
-        agent.init_session("mcp-auto")
+        agent.init_session("mcp-auto", namespace=namespace)
+def _public(value: Any) -> Any:
+    """Convert public model values into JSON-safe primitives."""
+    if isinstance(value, Enum):
+        return value.value
+    if hasattr(value, "to_dict"):
+        return _public(value.to_dict())
+    if is_dataclass(value):
+        return _public(asdict(value))
+    if isinstance(value, dict):
+        return {str(key): _public(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_public(item) for item in value]
+    return value
+
+
+def _result_public(result: Any) -> dict[str, Any]:
+    """Keep the existing flat MCP result fields while using model ``to_dict``."""
+    if isinstance(result, dict):
+        payload = _public(result)
+        memory = payload.get("memory")
+        if isinstance(memory, dict):
+            flattened = {
+                "id": memory.get("id"),
+                "content": memory.get("content", ""),
+                "type": memory.get("memory_type", memory.get("type")),
+                "importance": memory.get("importance"),
+                "strength": memory.get("strength"),
+                "access_count": memory.get("access_count", 0),
+                "tags": memory.get("tags", []),
+                "score": payload.get("score", 0.0),
+                "scores": {
+                    "semantic": payload.get("semantic_score", 0.0),
+                    "recency": payload.get("recency_score", 0.0),
+                    "importance": payload.get("importance_score", 0.0),
+                    "strength": payload.get("strength_score", 0.0),
+                },
+            }
+            if isinstance(payload.get("evidence"), dict):
+                flattened["evidence"] = payload["evidence"]
+                flattened["trust"] = payload["evidence"].get("trust", "unknown")
+                flattened["reason"] = payload["evidence"].get("reason", "")
+            return flattened
+        return payload
+    memory = result.memory
+    payload = {
+        "id": memory.id,
+        "content": memory.content,
+        "type": memory.memory_type,
+        "importance": memory.importance,
+        "strength": memory.strength,
+        "access_count": memory.access_count,
+        "tags": list(memory.tags),
+        "score": result.score,
+        "scores": {
+            "semantic": result.semantic_score,
+            "recency": result.recency_score,
+            "importance": result.importance_score,
+            "strength": result.strength_score,
+        },
+    }
+    if result.evidence is not None:
+        payload["evidence"] = result.evidence.to_dict()
+        payload["trust"] = result.trust
+        payload["reason"] = result.reason
+    return _public(payload)
+
+
+def _evidence_public(result: Any, reason: str | None = None) -> dict[str, Any]:
+    if isinstance(result, dict):
+        payload = _public(result)
+        if reason:
+            payload["reason"] = reason
+        return payload
+    payload = {
+        "id": result.memory.id,
+        **(result.evidence.to_dict() if result.evidence is not None else {}),
+    }
+    if reason:
+        payload["reason"] = reason
+    return _public(payload)
 
 
 # Create MCP server
@@ -93,48 +175,71 @@ Provides tools to store and retrieve memories across sessions with:
 async def memory_perceive(
     user_input: str,
     top_k: int = 5,
+    namespace: str | None = None,
 ) -> str:
-    """Process a user input through the full memory cycle.
-
-    Args:
-        user_input: The user's message or query.
-        top_k: Max recollections to return (default: 5).
-
-    Returns:
-        JSON with recollections, new_memories, and stats.
-    """
-    _ensure_session()
+    """Process input through MemoryAgent with an explicit namespace."""
+    _ensure_session(namespace=namespace)
     agent = _get_agent()
-    result = agent.perceive(user_input)
-    recollections = result["recollections"][:top_k]
-
+    result = agent.perceive(user_input, namespace=namespace)
+    packet = result.get("recall_packet")
+    recollections = result.get("recollections", [])[:top_k]
+    selected_ids = (
+        packet.selected_ids
+        if packet is not None
+        else result.get(
+            "selected_ids",
+            [item.get("id") for item in recollections if isinstance(item, dict)],
+        )
+    )
+    dropped_ids = (
+        packet.dropped_ids
+        if packet is not None
+        else result.get("dropped_ids", [])
+    )
+    if packet is not None:
+        evidence = [
+            _evidence_public(item, packet.reasons.get(id(item)))
+            for item in packet.selected + packet.omitted
+        ]
+    else:
+        evidence = _public(result.get("evidence", []))
+    effective_namespace = (
+        result.get("lifecycle", {}).get("namespace", namespace)
+        if isinstance(result.get("lifecycle"), dict)
+        else namespace
+    )
     output = {
-        "recollections": [
-            {
-                "id": r.memory.id,
-                "content": r.memory.content,
-                "type": r.memory.memory_type,
-                "importance": r.memory.importance,
-                "strength": r.memory.strength,
-                "score": round(r.score, 3),
-            }
-            for r in recollections
-        ],
+        "namespace": effective_namespace,
+        "recollections": [_result_public(item) for item in recollections],
         "new_memories": [
             {
-                "id": m.id,
-                "content": m.content[:80],
-                "type": m.memory_type,
+                "id": item.id,
+                "content": item.content[:80],
+                "type": item.memory_type,
+                "namespace": item.namespace,
             }
-            for m in result["new_memories"]
+            if hasattr(item, "id")
+            else _public(item)
+            for item in result.get("new_memories", [])
         ],
-        "stats": {
-            "turn": result["turn_count"],
-            "total_memories": result["total_memories"],
-            "archived": result["archived"],
-        },
+        "selected_ids": selected_ids,
+        "dropped_ids": dropped_ids,
+        "evidence": evidence,
+        "stats": _public(
+            {
+                "turn": result.get("turn_count", 0),
+                "total_memories": result.get("total_memories", 0),
+                "archived": result.get("archived", 0),
+            }
+        ),
+        "lifecycle": _public(
+            result.get(
+                "lifecycle",
+                {"operation": "perceive", "status": "processed", "namespace": namespace},
+            )
+        ),
     }
-    return json.dumps(output, ensure_ascii=False, indent=2)
+    return json.dumps(_public(output), ensure_ascii=False, indent=2, allow_nan=False)
 
 
 @mcp.tool(
@@ -146,49 +251,23 @@ async def memory_search(
     query: str,
     top_k: int = 5,
     memory_type: str | None = None,
+    namespace: str | None = None,
 ) -> str:
-    """Search memories semantically.
-
-    Args:
-        query: Natural language query.
-        top_k: Max results (default: 5).
-        memory_type: Optional filter: episodic, semantic, preference, procedural.
-
-    Returns:
-        JSON array of matching memories with scores.
-    """
-    _ensure_session()
+    """Search memories through the trust-aware MemoryAgent facade."""
+    _ensure_session(namespace=namespace)
     agent = _get_agent()
-    results = agent.retrieval.retrieve(
-        query, top_k=top_k, memory_type=memory_type, use_mmr=True
+    payload = agent.search_memories(
+        query,
+        top_k=top_k,
+        memory_type=memory_type,
+        namespace=namespace,
     )
 
-    if not results:
-        return json.dumps({"results": [], "total": 0})
-
-    output = {
-        "results": [
-            {
-                "id": r.memory.id,
-                "content": r.memory.content,
-                "type": r.memory.memory_type,
-                "importance": r.memory.importance,
-                "strength": r.memory.strength,
-                "access_count": r.memory.access_count,
-                "tags": r.memory.tags,
-                "score": round(r.score, 3),
-                "scores": {
-                    "semantic": round(r.semantic_score, 3),
-                    "recency": round(r.recency_score, 3),
-                    "importance": round(r.importance_score, 3),
-                    "strength": round(r.strength_score, 3),
-                },
-            }
-            for r in results
-        ],
-        "total": len(results),
-    }
-    return json.dumps(output, ensure_ascii=False, indent=2)
+    payload = _public(payload)
+    payload["results"] = [
+        _result_public(item) for item in payload.get("results", [])
+    ]
+    return json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False)
 
 
 @mcp.tool(
@@ -201,42 +280,43 @@ async def memory_store(
     memory_type: str = "semantic",
     importance: float = 0.5,
     tags: str = "",
+    namespace: str | None = None,
 ) -> str:
-    """Store a new memory.
-
-    Args:
-        content: The memory content text.
-        memory_type: episodic, semantic, preference, or procedural.
-        importance: [0-1] how important this memory is (higher = decays slower).
-        tags: Comma-separated tags for categorization.
-
-    Returns:
-        JSON with the new memory id.
-    """
-    _ensure_session()
+    """Store a memory through the namespace-aware MemoryAgent facade."""
+    _ensure_session(namespace=namespace)
     agent = _get_agent()
     tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else []
-
-    # Clamp importance to valid range
     importance = max(0.0, min(1.0, importance))
-
     mem = MemoryRecord(
         content=content,
         memory_type=memory_type,
         importance=importance,
         tags=tag_list,
+        namespace=namespace,
     )
-    mid = agent.store_memory(mem)
-
+    mid = agent.store_memory(mem, namespace=namespace)
+    effective_namespace = (
+        mem.namespace
+        if mem.namespace is not None
+        else getattr(agent, "namespace", namespace)
+    )
     return json.dumps(
         {
             "id": mid,
             "content": content[:60],
             "type": memory_type,
             "importance": importance,
+            "tags": tag_list,
+            "namespace": effective_namespace,
             "status": "stored",
+            "lifecycle": {
+                "operation": "store",
+                "status": "stored",
+                "namespace": effective_namespace,
+            },
         },
         ensure_ascii=False,
+        allow_nan=False,
     )
 
 
@@ -245,30 +325,23 @@ async def memory_store(
     description="Get memory agent statistics: total memories, type distribution, "
     "decay lifespans, embedding count, and archival info.",
 )
-async def memory_stats() -> str:
-    """Return memory statistics."""
-    _ensure_session()
+async def memory_stats(namespace: str | None = None) -> str:
+    """Return namespace-scoped memory statistics."""
+    _ensure_session(namespace=namespace)
     agent = _get_agent()
-    stats = agent.get_stats()
-    return json.dumps(stats, ensure_ascii=False, indent=2)
+    stats = agent.get_stats(namespace=namespace)
+    return json.dumps(_public(stats), ensure_ascii=False, indent=2, allow_nan=False)
 
 
 @mcp.tool(
     name="memory__forget",
     description="Delete a specific memory by ID. Use when a memory is wrong or obsolete.",
 )
-async def memory_forget(memory_id: int) -> str:
-    """Delete a memory.
-
-    Args:
-        memory_id: The memory ID to delete.
-
-    Returns:
-        Confirmation message.
-    """
+async def memory_forget(memory_id: int, namespace: str | None = None) -> str:
+    """Archive a memory through the MemoryAgent facade."""
     agent = _get_agent()
-    agent.store.delete_memory(memory_id)
-    return json.dumps({"id": memory_id, "status": "deleted"})
+    result = agent.forget_memory(memory_id, namespace=namespace)
+    return json.dumps(_public(result), ensure_ascii=False, allow_nan=False)
 
 
 @mcp.tool(
@@ -276,29 +349,13 @@ async def memory_forget(memory_id: int) -> str:
     description="Reinforce a memory by ID — boosts its recall strength. "
     "Use when the user confirms a memory is still relevant.",
 )
-async def memory_reinforce(memory_id: int) -> str:
-    """Reinforce a memory (boost recall strength).
-
-    Args:
-        memory_id: The memory ID to reinforce.
-
-    Returns:
-        New strength value.
-    """
+async def memory_reinforce(memory_id: int, namespace: str | None = None) -> str:
+    """Reinforce a memory through the MemoryAgent facade."""
     agent = _get_agent()
-    mem = agent.store.get_memory(memory_id)
-    if mem is None:
-        return json.dumps({"error": f"Memory #{memory_id} not found"})
+    result = agent.reinforce_memory(memory_id, namespace=namespace)
+    return json.dumps(_public(result), ensure_ascii=False, allow_nan=False)
 
-    agent.forgetting.reinforce(mem)
-    agent.store.update_memory(mem)
-    return json.dumps(
-        {
-            "id": memory_id,
-            "new_strength": round(mem.strength, 3),
-            "status": "reinforced",
-        }
-    )
+
 
 
 # ---------------------------------------------------------------------------
@@ -315,8 +372,7 @@ async def memory_reinforce(memory_id: int) -> str:
 async def recent_memories() -> str:
     """Return the 10 most recent active memories."""
     agent = _get_agent()
-    memories = agent.store.get_all_active_memories()
-    recent = memories[:10]
+    memories = agent.list_memories()[:10]
     output = [
         {
             "id": m.id,
@@ -325,11 +381,11 @@ async def recent_memories() -> str:
             "importance": m.importance,
             "strength": round(m.strength, 3),
             "created_at": m.created_at,
+            "namespace": m.namespace,
         }
-        for m in recent
+        for m in memories
     ]
-    return json.dumps(output, ensure_ascii=False, indent=2)
-
+    return json.dumps(_public(output), ensure_ascii=False, indent=2, allow_nan=False)
 
 @mcp.resource(
     uri="memory://stats",
@@ -341,7 +397,7 @@ async def stats_resource() -> str:
     """Return memory stats as a resource."""
     agent = _get_agent()
     stats = agent.get_stats()
-    return json.dumps(stats, ensure_ascii=False, indent=2)
+    return json.dumps(_public(stats), ensure_ascii=False, indent=2, allow_nan=False)
 
 
 # ---------------------------------------------------------------------------
@@ -353,23 +409,20 @@ async def stats_resource() -> str:
     name="memory-assisted",
     description="Load relevant memories before responding to a user query.",
 )
-async def memory_assisted_prompt(query: str) -> str:
-    """Generate a prompt that includes relevant memories.
-
-    Args:
-        query: The user's question or request.
-    """
+async def memory_assisted_prompt(
+    query: str, namespace: str | None = None
+) -> str:
+    """Generate a prompt using trust-filtered namespace-scoped memories."""
     agent = _get_agent()
-    results = agent.retrieval.retrieve(query, top_k=5, use_mmr=True)
-
+    payload = agent.search_memories(query, top_k=5, namespace=namespace)
+    results = payload.get("results", [])
     if not results:
         return f"## Query\n\n{query}\n\n*(No relevant memories found)*"
-
     memories_text = "\n".join(
-        f"- [{r.memory.memory_type}] (imp={r.memory.importance:.1f}) {r.memory.content}"
-        for r in results
+        f"- [{item.get('memory', {}).get('memory_type', item.get('type', 'memory'))}] "
+        f"{item.get('memory', {}).get('content', item.get('content', ''))}"
+        for item in results
     )
-
     return f"""## Relevant Memories
 {memories_text}
 

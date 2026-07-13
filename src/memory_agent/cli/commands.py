@@ -236,10 +236,21 @@ def _handle_command(agent: MemoryAgent, cmd: str) -> None:
             print(f"    {level}: ~{days} days")
 
     elif command == "/memories":
-        memories = agent.store.get_all_active_memories()
+        memories = agent.list_memories()
         if not memories:
             print("  No memories.")
-            return
+        namespace = getattr(agent, "namespace", None)
+        print(f"  Namespace: {namespace}")
+        print("  Lifecycle: active")
+        print(f"  Selected IDs: {[m.id for m in memories[:20]]}")
+        print("  Dropped IDs: []")
+        for memory in memories[:20]:
+            evidence = agent.explain_memory(memory)
+            print(
+                f"  Evidence #{memory.id}: "
+                f"trust={evidence.get('trust', 'unknown')} "
+                f"reason={evidence.get('reason', 'active memory')}"
+            )
         print(f"\n  Active memories ({len(memories)}):")
         print(f"  {'─' * 40}")
         for m in memories[:20]:
@@ -252,24 +263,48 @@ def _handle_command(agent: MemoryAgent, cmd: str) -> None:
         if not arg:
             print("  Use: /search <query>")
             return
-        results = agent.retrieval.retrieve(arg, top_k=5)
+        payload = agent.search_memories(arg, top_k=5)
+        results = payload.get("results", [])
         if not results:
             print("  No results.")
-            return
         print(f"\n  Search results for '{arg}':")
         print(f"  {'─' * 40}")
-        for r in results:
-            m = r.memory
-            print(f"  #{m.id} [{m.memory_type}] (score={r.score:.3f})")
-            print(f"       {m.content[:80]}")
+        for item in results:
+            memory = item.get("memory", item)
+            memory_type = memory.get("memory_type", memory.get("type", "memory"))
+            print(f"  #{memory.get('id')} [{memory_type}] "
+                  f"(score={float(item.get('score', 0.0)):.3f})")
+            print(f"       {memory.get('content', '')[:80]}")
+        lifecycle = payload.get("lifecycle", {})
+        lifecycle_status = (
+            lifecycle.get("status", "searched")
+            if isinstance(lifecycle, dict)
+            else lifecycle
+        )
+        print(f"  Namespace: {payload.get('namespace')}")
+        print(f"  Lifecycle: {lifecycle_status}")
+        print(f"  Selected IDs: {payload.get('selected_ids', [])}")
+        print(f"  Dropped IDs: {payload.get('dropped_ids', [])}")
+        for evidence in payload.get("evidence", []):
+            print(
+                f"  Evidence #{evidence.get('id')}: "
+                f"trust={evidence.get('trust', 'unknown')} "
+                f"reason={evidence.get('reason', '')}"
+            )
 
     elif command == "/forget":
         if not arg or not arg.isdigit():
             print("  Use: /forget <memory_id>")
             return
         mid = int(arg)
-        agent.store.delete_memory(mid)
-        print(f"  Memory #{mid} deleted.")
+        result = agent.forget_memory(mid)
+        print(f"  Memory #{mid} {result.get('status', 'archived')}.")
+        print(f"  Namespace: {result.get('namespace')}")
+        print(f"  Lifecycle: {result.get('lifecycle', 'archived')}")
+        print(f"  Selected IDs: {result.get('selected_ids', [])}")
+        print(f"  Dropped IDs: {result.get('dropped_ids', [mid])}")
+        print(f"  Trust: {result.get('trust', 'unknown')}")
+        print(f"  Reason: {result.get('reason', '')}")
 
     else:
         print(f"  Unknown command: {command}. Type /help")
@@ -318,14 +353,21 @@ def _generate_response(
 
 
 @cli.command()
+@click.option("--namespace", default=None, help="Memory namespace")
 @click.pass_context
-def stats(ctx: click.Context) -> None:
-    """Show memory statistics without starting a session."""
+def stats(ctx: click.Context, namespace: str | None) -> None:
+    """Show namespace-scoped memory statistics without starting a session."""
     agent = _get_agent(ctx)
-    stats_data = agent.get_stats()
+    stats_data = agent.get_stats(namespace=namespace)
 
     click.echo("\n📊 MemoryAgent Statistics")
     click.echo("━" * 40)
+    click.echo(f"  Namespace:          {stats_data.get('namespace', namespace)}")
+    click.echo(f"  Lifecycle:          {stats_data.get('lifecycle', 'active')}")
+    if "trust" in stats_data:
+        click.echo(f"  Trust:              {stats_data['trust']}")
+    if "reason" in stats_data:
+        click.echo(f"  Reason:             {stats_data['reason']}")
     click.echo(f"  Active memories:   {stats_data['total_active']}")
     click.echo(f"  Archived:          {stats_data['archived']}")
     click.echo(f"  Embeddings:        {stats_data['embedding_count']}")
@@ -343,34 +385,66 @@ def stats(ctx: click.Context) -> None:
 @cli.command()
 @click.argument("query")
 @click.option("--top-k", default=5, help="Number of results")
+@click.option("--namespace", default=None, help="Memory namespace")
 @click.pass_context
-def search(ctx: click.Context, query: str, top_k: int) -> None:
-    """Semantic memory search."""
+def search(ctx: click.Context, query: str, top_k: int, namespace: str | None) -> None:
+    """Semantic memory search through the MemoryAgent facade."""
     agent = _get_agent(ctx)
-    results = agent.retrieval.retrieve(query, top_k=top_k)
-
-    if not results:
-        click.echo("  No matching memories found.")
-        return
+    payload = agent.search_memories(query, top_k=top_k, namespace=namespace)
+    results = payload.get("results", [])
 
     click.echo(f"\n  Search results for: '{query}'")
+    click.echo(f"  Namespace: {payload.get('namespace', namespace)}")
+    click.echo(f"  Lifecycle: {payload.get('lifecycle', {}).get('status', 'searched') if isinstance(payload.get('lifecycle'), dict) else payload.get('lifecycle', 'searched')}")
     click.echo("━" * 50)
-    for i, r in enumerate(results, 1):
-        m = r.memory
+    if not results:
+        click.echo("  No matching memories found.")
+    for i, item in enumerate(results, 1):
+        memory = item.get("memory", item)
+        memory_type = memory.get("memory_type", memory.get("type", "memory"))
+        score = item.get("score", 0.0)
+        trust = item.get("trust") or item.get("evidence", {}).get("trust", "unknown")
+        reason = item.get("reason") or item.get("evidence", {}).get("reason", "")
         click.echo(
-            f"  {i}. #{m.id} [{m.memory_type}] "
-            f"(score={r.score:.3f}, imp={m.importance:.1f})"
+            f"  {i}. #{memory.get('id')} [{memory_type}] "
+            f"(score={float(score):.3f}, imp={float(memory.get('importance', 0.0)):.1f}, trust={trust})"
         )
-        click.echo(f"     {m.content[:80]}")
+        click.echo(f"     {memory.get('content', '')[:80]}")
+        if reason:
+            click.echo(f"     Reason: {reason}")
         click.echo()
+    click.echo(f"  Selected IDs: {payload.get('selected_ids', [])}")
+    click.echo(f"  Dropped IDs: {payload.get('dropped_ids', [])}")
+    for evidence in payload.get("evidence", []):
+        click.echo(
+            f"  Evidence #{evidence.get('id')}: trust={evidence.get('trust', 'unknown')} "
+            f"reason={evidence.get('reason', '')}"
+        )
+
+
 
 
 @cli.command()
+@click.argument("memory_id", type=int)
+@click.option("--namespace", default=None, help="Memory namespace")
 @click.pass_context
-def memories(ctx: click.Context) -> None:
-    """List all active memories."""
+def forget(ctx: click.Context, memory_id: int, namespace: str | None) -> None:
+    """Archive a memory through the MemoryAgent facade."""
     agent = _get_agent(ctx)
-    all_memories = agent.store.get_all_active_memories()
+    payload = agent.forget_memory(memory_id, namespace=namespace)
+    click.echo(f"  Memory #{memory_id}: {payload.get('status', 'archived')}")
+    click.echo(f"  Namespace: {payload.get('namespace', namespace)}")
+    click.echo(f"  Lifecycle: {payload.get('lifecycle', 'archived')}")
+    click.echo(f"  Trust: {payload.get('trust', 'unknown')}")
+    click.echo(f"  Reason: {payload.get('reason', '')}")
+
+@cli.command()
+@click.option("--namespace", default=None, help="Memory namespace")
+@click.pass_context
+def memories(ctx: click.Context, namespace: str | None) -> None:
+    """List all active memories through the MemoryAgent facade."""
+    agent = _get_agent(ctx)
+    all_memories = agent.list_memories(namespace=namespace)
 
     if not all_memories:
         click.echo("  No memories stored.")
@@ -382,7 +456,7 @@ def memories(ctx: click.Context) -> None:
         click.echo(
             f"  #{m.id:<4} [{m.memory_type:<10}] "
             f"imp={m.importance:.2f} str={m.strength:.2f} "
-            f"acc={m.access_count}"
+            f"acc={m.access_count} namespace={m.namespace}"
         )
         click.echo(f"      {m.content[:80]}")
         click.echo()

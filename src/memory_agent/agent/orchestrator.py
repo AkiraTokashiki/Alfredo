@@ -336,9 +336,124 @@ class MemoryAgent:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
-    def store_memory(self, memory: MemoryRecord) -> int:
-        """Store a memory with its embedding in the active namespace."""
-        return self._store_memory(memory, namespace=self.namespace)
+    def store_memory(
+        self, memory: MemoryRecord, *, namespace: str | None = None
+    ) -> int:
+        """Store a memory in the explicit or active namespace."""
+        active_namespace = namespace if namespace is not None else self.namespace
+        return self._store_memory(memory, namespace=active_namespace)
+
+    def search_memories(
+        self,
+        query: str,
+        *,
+        top_k: int = 5,
+        memory_type: str | None = None,
+        namespace: str | None = None,
+    ) -> dict[str, Any]:
+        """Search memories through the trust-aware public agent boundary."""
+        active_namespace = namespace if namespace is not None else self.namespace
+        results = self.retrieval.retrieve(
+            query,
+            top_k=top_k,
+            memory_type=memory_type,
+            use_mmr=True,
+            namespace=active_namespace,
+        )
+        self._apply_trust_policy(results)
+        packet = self.context_packer.pack(results)
+        evidence: list[dict[str, Any]] = []
+        for result in packet.selected + packet.omitted:
+            item = {
+                "id": result.memory.id,
+                **(
+                    result.evidence.to_dict()
+                    if result.evidence is not None
+                    else {}
+                ),
+            }
+            if id(result) in packet.reasons:
+                item["reason"] = packet.reasons[id(result)]
+            evidence.append(item)
+        return {
+            "namespace": active_namespace,
+            "results": [result.to_dict() for result in packet.selected],
+            "total": len(packet.selected),
+            "selected_ids": packet.selected_ids,
+            "dropped_ids": packet.dropped_ids,
+            "evidence": evidence,
+            "lifecycle": {
+                "operation": "search",
+                "status": "searched",
+                "namespace": active_namespace,
+            },
+        }
+
+    def forget_memory(
+        self, memory_id: int, *, namespace: str | None = None
+    ) -> dict[str, Any]:
+        """Archive one memory through the namespace-aware facade."""
+        active_namespace = namespace if namespace is not None else self.namespace
+        memory = self.store.get_memory(memory_id, namespace=active_namespace)
+        if memory is None:
+            return {
+                "id": memory_id,
+                "namespace": active_namespace,
+                "status": "not_found",
+                "trust": "unknown",
+                "reason": "memory not found in namespace",
+                "lifecycle": "unchanged",
+            }
+        policy_evidence = self.trust_policy.evaluate(memory)
+        self.store.archive_memory(
+            memory_id,
+            reason="explicit user request",
+            namespace=active_namespace,
+        )
+        return {
+            "id": memory_id,
+            "namespace": active_namespace,
+            "status": "archived",
+            "trust": policy_evidence.trust,
+            "reason": (
+                "explicit user request; "
+                f"{policy_evidence.reason or 'trust policy evaluated'}"
+            ),
+            "lifecycle": "archived",
+        }
+
+    def reinforce_memory(
+        self, memory_id: int, *, namespace: str | None = None
+    ) -> dict[str, Any]:
+        """Reinforce one memory through the facade."""
+        active_namespace = namespace if namespace is not None else self.namespace
+        memory = self.store.get_memory(memory_id, namespace=active_namespace)
+        if memory is None:
+            return {
+                "id": memory_id,
+                "namespace": active_namespace,
+                "status": "not_found",
+                "reason": "memory not found in namespace",
+                "lifecycle": "unchanged",
+            }
+        self.forgetting.reinforce(memory)
+        self.store.update_memory(memory, namespace=active_namespace)
+        return {
+            "id": memory_id,
+            "namespace": active_namespace,
+            "new_strength": round(memory.strength, 3),
+            "status": "reinforced",
+            "reason": "explicit reinforcement",
+            "lifecycle": "reinforced",
+        }
+
+    def list_memories(self, *, namespace: str | None = None) -> list[MemoryRecord]:
+        """List active memories through the facade."""
+        active_namespace = namespace if namespace is not None else self.namespace
+        return self.store.get_all_active_memories(namespace=active_namespace)
+    def explain_memory(self, memory: MemoryRecord) -> dict[str, Any]:
+        """Return trust evidence for a memory through the public facade."""
+        return self.trust_policy.evaluate(memory).to_dict()
 
     def _store_memory(
         self, memory: MemoryRecord, *, namespace: str | None = None
@@ -433,14 +548,15 @@ class MemoryAgent:
     # Stats
     # ------------------------------------------------------------------
 
-    def get_stats(self) -> dict[str, Any]:
-        """Get current memory agent statistics for the active namespace."""
-        all_memories = self.store.get_all_active_memories(namespace=self.namespace)
+    def get_stats(self, *, namespace: str | None = None) -> dict[str, Any]:
+        """Get current memory agent statistics for a namespace."""
+        active_namespace = namespace if namespace is not None else self.namespace
+        all_memories = self.store.get_all_active_memories(namespace=active_namespace)
         type_counts: dict[str, int] = {}
         tag_counts: dict[str, int] = {}
         total_importance = 0.0
         archived = self.store.count_memories(
-            active_only=False, namespace=self.namespace
+            active_only=False, namespace=active_namespace
         ) - len(all_memories)
 
         for mem in all_memories:
@@ -450,6 +566,7 @@ class MemoryAgent:
                 tag_counts[tag] = tag_counts.get(tag, 0) + 1
 
         return {
+            "namespace": active_namespace,
             "total_active": len(all_memories),
             "archived": max(0, archived),
             "session_turns": self.state.turn_count,
@@ -458,8 +575,9 @@ class MemoryAgent:
                 sorted(tag_counts.items(), key=lambda x: x[1], reverse=True)[:10]
             ),
             "avg_importance": round(total_importance / max(len(all_memories), 1), 2),
-            "embedding_count": self.store.get_embedding_count(namespace=self.namespace),
+            "embedding_count": self.store.get_embedding_count(namespace=active_namespace),
             "decay_lifespans_days": self.forgetting.decay_samples(),
+            "lifecycle": "active",
         }
 
     def close(self) -> None:
