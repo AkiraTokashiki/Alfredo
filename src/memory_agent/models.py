@@ -220,6 +220,8 @@ class SessionRecord:
     started_at: str | None = None
     ended_at: str | None = None
     memory_ids: list[int] = field(default_factory=list)
+    namespace: str | None = None
+
 
 
 @dataclass
