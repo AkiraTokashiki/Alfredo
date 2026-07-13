@@ -24,6 +24,12 @@ class MemoryRecord:
     metadata: dict[str, Any] = field(default_factory=dict)
     tags: list[str] = field(default_factory=list)
     is_active: bool = True
+    namespace: str | None = None
+    confidence: float | None = None
+    sensitivity: str | None = None
+    source: str | None = None
+    superseded_by: int | str | None = None
+    last_decision_reason: str | None = None
 
     @property
     def age_hours(self) -> float:
@@ -42,6 +48,7 @@ class MemoryRecord:
         return (datetime.now() - accessed).total_seconds() / 3600
 
     def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-safe public representation."""
         return {
             "id": self.id,
             "content": self.content,
@@ -52,9 +59,15 @@ class MemoryRecord:
             "last_accessed_at": self.last_accessed_at,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
-            "metadata": json.dumps(self.metadata),
-            "tags": self.tags,
-            "is_active": 1 if self.is_active else 0,
+            "metadata": self.metadata,
+            "tags": list(self.tags),
+            "is_active": self.is_active,
+            "namespace": self.namespace,
+            "confidence": self.confidence,
+            "sensitivity": self.sensitivity,
+            "source": self.source,
+            "superseded_by": self.superseded_by,
+            "last_decision_reason": self.last_decision_reason,
         }
 
     @classmethod
@@ -78,7 +91,47 @@ class MemoryRecord:
             metadata=metadata,
             tags=tags,
             is_active=bool(d.get("is_active", 1)),
+            namespace=d.get("namespace"),
+            confidence=(
+                float(d["confidence"])
+                if d.get("confidence") is not None
+                else None
+            ),
+            sensitivity=d.get("sensitivity"),
+            source=d.get("source"),
+            superseded_by=d.get("superseded_by"),
+            last_decision_reason=d.get("last_decision_reason"),
         )
+
+
+@dataclass(frozen=True)
+class RetrievalEvidence:
+    """Explain why a memory was selected or rejected during retrieval."""
+
+    score: float = 0.0
+    semantic_score: float = 0.0
+    recency_score: float = 0.0
+    importance_score: float = 0.0
+    strength_score: float = 0.0
+    matched_by: tuple[str, ...] = ()
+    trust: str = "unknown"
+    reason: str = ""
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "matched_by", tuple(self.matched_by))
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-safe public representation."""
+        return {
+            "score": self.score,
+            "semantic_score": self.semantic_score,
+            "recency_score": self.recency_score,
+            "importance_score": self.importance_score,
+            "strength_score": self.strength_score,
+            "matched_by": list(self.matched_by),
+            "trust": self.trust,
+            "reason": self.reason,
+        }
 
 
 @dataclass
@@ -91,11 +144,24 @@ class SearchResult:
     recency_score: float = 0.0
     importance_score: float = 0.0
     strength_score: float = 0.0
+    evidence: RetrievalEvidence | None = None
 
     @property
     def estimated_chars(self) -> int:
         """Approximate formatted context cost for this memory."""
         return len(self.memory.content)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-safe public representation."""
+        return {
+            "memory": self.memory.to_dict(),
+            "score": self.score,
+            "semantic_score": self.semantic_score,
+            "recency_score": self.recency_score,
+            "importance_score": self.importance_score,
+            "strength_score": self.strength_score,
+            "evidence": self.evidence.to_dict() if self.evidence else None,
+        }
 
 
 @dataclass
