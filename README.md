@@ -44,7 +44,7 @@ The repository's `requirements.txt` contains the equivalent editable requirement
 
 ## Lifecycle: from learning to an explainable packet
 
-Every turn can follow this bounded path:
+Conceptually, Alfredo's lifecycle can be summarized by this bounded path; it is not the implementation order of every `perceive` turn:
 
 1. **Learn** — extract a candidate preference, fact, or interaction from input and attach its namespace and provenance fields.
 2. **Retrieve** — search active records and rank candidates using the configured retrieval signals.
@@ -59,7 +59,7 @@ Run the deterministic walkthrough with:
 python examples/demo_lifecycle.py
 ```
 
-The demo covers cross-session recall, preference supersession, and bounded trusted context without network access, model downloads, API keys, or wall-clock output. See [the full integration guide](INTEGRATION.md) for MCP stdio/HTTP and programmatic usage.
+The demo covers cross-session recall, preference supersession, and bounded trusted context without network access, model downloads, API keys, or wall-clock output. See [the architecture lifecycle](docs/ARCHITECTURE.md#real-lifecycle) for the actual perceive-turn stages and [the full integration guide](INTEGRATION.md) for MCP stdio/HTTP and programmatic usage.
 
 ## Why it is different
 
