@@ -1,249 +1,190 @@
-# MemoryAgent Integration with LLMs and Hermes
+# Alfredo MemoryAgent integration
 
-## 1. MCP Server mode (recommended for Hermes)
+This guide documents the entry points that exist in this repository. The distribution name is `alfredo-memory-agent`; the import and module namespace remains `memory_agent`. The examples use a local SQLite vault and do not imply a hosted Alfredo service.
 
-MemoryAgent exposes a Model Context Protocol server with memory tools.
-Any MCP client can use it, including Hermes, Claude Desktop, and Cursor.
+## Install and run offline first
 
-### 1.1 Add it to Hermes
-
-```bash
-hermes mcp add memory-agent \
-  --command python \
-  --args "-m,memory_agent,mcp"
-```
-
-Or edit `~/.hermes/config.yaml` and add:
-
-```yaml
-mcp_servers:
-  memory-agent:
-    command: python
-    args: ["-m", "memory_agent", "mcp"]
-    # If Hermes runs in another environment:
-    # command: "E:/CODE/MemoryAgent/.venv/Scripts/python.exe"
-```
-
-Then run `/reload-mcp` in the Hermes session. These tools become available:
-
-- `memory__perceive` — process input and retrieve relevant memories
-- `memory__search` — semantic memory search
-- `memory__store` — explicitly store a memory
-- `memory__stats` — show memory statistics
-- `memory__forget` — delete/archive memory
-- `memory__reinforce` — reinforce a memory
-
-
-Todas las herramientas aceptan `namespace` opcional. El namespace se propaga por la
-fachada `MemoryAgent`, por lo que las búsquedas, estadísticas y operaciones de ciclo
-de vida nunca mezclan memorias de otros tenants. Por ejemplo, con stdio:
-
-```json
-{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"memory__search","arguments":{"query":"idioma preferido","namespace":"tenant-a"}}}
-```
-
-El mismo argumento funciona sin cambios en el transporte HTTP; el protocolo y los
-nombres de herramientas son idénticos.
-### 1.2 HTTP service mode (for remote access)
+The release install contract starts with the canonical distribution name:
 
 ```bash
-cd E:\CODE\MemoryAgent
-.venv\Scripts\python -m memory_agent mcp --http --port 8090
-# Listens on http://localhost:8090/mcp
+python -m pip install alfredo-memory-agent
+alfredo --offline quickstart
 ```
 
-Then configure Hermes:
-
-```yaml
-mcp_servers:
-  memory-agent:
-    url: http://localhost:8090/mcp
-```
-
-En HTTP, incluya `"namespace": "tenant-a"` en los argumentos JSON de
-`memory__perceive`, `memory__search`, `memory__store`, `memory__stats`,
-`memory__forget` o `memory__reinforce`. Las respuestas incluyen `namespace`,
-`selected_ids`, `dropped_ids`, evidencia de confianza (`trust` y `reason`) y el
-estado `lifecycle` cuando aplica.
-
-### 1.3 Test the MCP server
+The `alfredo` command is installed by the package. The module entry point remains compatible with existing scripts:
 
 ```bash
-# Verify stdio mode responds
-echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | \
-  .venv\Scripts\python -m memory_agent mcp
-
-# Or from another terminal when HTTP mode is active
-curl http://localhost:8090/mcp \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+python -m memory_agent --offline quickstart
 ```
 
----
+`--offline` selects deterministic hashed-token embeddings. The quickstart uses a temporary SQLite database unless `--db` is supplied, performs a cross-turn recall, and requires **no API key, network request, or model download**. No API keys are needed for any of the offline CLI, Python, or MCP examples below.
 
-## 2. Standalone LLM connector
+For a checkout, an editable install is useful during development. Quote extras so the command is safe in Windows PowerShell and POSIX shells:
 
-The standalone connector runs a complete conversation with a real LLM while using MemoryAgent as persistent memory.
+```powershell
+python -m pip install -e ".[mcp]"
+```
 
-### 2.1 Configure an API key
+The `mcp` extra is required only for the MCP server (`mcp` and `httpx`). It is not required for the offline CLI or the core Python API. The optional `semantic` extra enables `sentence-transformers`; it is not used by `--offline`:
+
+```powershell
+python -m pip install -e ".[semantic]"
+alfredo --db .alfredo/memory.db chat
+```
+
+Keep databases separate when the embedding provider or dimension changes.
+
+## Offline CLI
+
+Global options come before the subcommand:
 
 ```bash
-# DeepSeek (default)
-set DEEPSEEK_API_KEY=sk-...   # Windows CMD
-export DEEPSEEK_API_KEY=sk-... # bash
-
-# Or OpenRouter
-set OPENROUTER_API_KEY=sk-...
+alfredo --offline --db .alfredo/memory.db stats --namespace tenant-a
+alfredo --offline --db .alfredo/memory.db search "preferred language" --namespace tenant-a
+alfredo --offline --db .alfredo/memory.db memories --namespace tenant-a
+alfredo --offline --db .alfredo/memory.db forget 12 --namespace tenant-a
+alfredo --offline --db .alfredo/memory.db benchmark compare \
+  --users benchmarks/alfredos_vault/users.json \
+  --memories benchmarks/alfredos_vault/memories.jsonl \
+  --questions benchmarks/alfredos_vault/evaluation_questions.jsonl \
+  --report .alfredo/benchmark-comparison.json --seed 42 --run local-offline
 ```
 
-### 2.2 Start an interactive session
+The module form is equivalent: replace `alfredo` with `python -m memory_agent`. `chat` is a local interactive session. `stats`, `search`, `memories`, and `forget` accept an optional namespace and operate through the same facade as the API. `benchmark compare` is a synthetic, deterministic comparison and must be run with `--offline` (or the global `--offline`).
 
-```bash
-cd E:\CODE\MemoryAgent
-.venv\Scripts\python -m memory_agent.integrations.llm_connector
-```
+## Python API
 
-With an explicit provider:
-
-```bash
-# DeepSeek (default)
-.venv\Scripts\python -m memory_agent.integrations.llm_connector \
-  --provider deepseek
-
-# OpenRouter
-.venv\Scripts\python -m memory_agent.integrations.llm_connector \
-  --provider openrouter --model openai/gpt-4o
-
-# OpenAI
-.venv\Scripts\python -m memory_agent.integrations.llm_connector \
-  --provider openai --model gpt-4o
-
-# Anthropic
-set ANTHROPIC_API_KEY=sk-...
-.venv\Scripts\python -m memory_agent.integrations.llm_connector \
-  --provider anthropic --model claude-sonnet-4-20250514
-```
-
-### 2.3 Single query
-
-```bash
-.venv\Scripts\python -m memory_agent.integrations.llm_connector \
-  -q "What do you know about me?"
-```
-
-### 2.4 Persistent database across sessions
-
-By default, MemoryAgent stores runtime memory in the native memory vault.
-Pass `--db` to use a specific database path:
-
-```bash
-.venv\Scripts\python -m memory_agent.integrations.llm_connector \
-  --db "E:/CODE/MemoryAgent/my_memory.db"
-```
-
----
-
-## 3. Hermes skill integration
-
-To make Hermes load MemoryAgent behavior automatically at startup:
-
-### Create the skill
-
-```bash
-hermes skills create memory-agent-integration
-```
-
-Skill content:
-
-```markdown
-# MemoryAgent Integration
-
-When the user asks about something you may have discussed before,
-use the memory__search tool to find relevant memories.
-
-When the user shares a preference or important fact,
-use the memory__store tool to save it.
-
-At the start of each session, use memory__stats to check
-how many memories are stored.
-```
-
-### Load it in a session
-
-```bash
-hermes -s memory-agent-integration
-```
-
----
-
-## 4. Programmatic Python usage
+`MemoryAgent` is the public orchestration facade. It accepts `db_path`, a `MemoryAgentConfig`, and optional injected store, embedding, retrieval, and trust ports. A minimal local example is:
 
 ```python
 from memory_agent.agent.orchestrator import MemoryAgent
 
-agent = MemoryAgent(db_path="my_memory.db")
-agent.init_session("my-session")
+agent = MemoryAgent(db_path=".alfredo/memory.db")
+agent.init_session("assistant", namespace="tenant-a")
 
-# One turn: extract, retrieve, and store
-result = agent.perceive("I like programming in Python")
+result = agent.perceive(
+    "I prefer concise Python examples",
+    namespace="tenant-a",
+)
+print(result["recollection_text"])
+print(result["recall_packet"].selected_ids)
 
-print("Retrieved memories:", len(result["recollections"]))
-for r in result["recollections"]:
-    print(f"  [{r.memory.memory_type}] {r.memory.content}")
-
-print(f"\nActive memories: {result['total_memories']}")
-print(f"Turn: {result['turn_count']}")
-
+search = agent.search_memories("Python", namespace="tenant-a")
+print(search["selected_ids"], search["dropped_ids"])
 agent.end_session()
 agent.close()
 ```
 
----
+Useful facade methods are `init_session`, `end_session`, `perceive`, `store_memory`, `search_memories`, `list_memories`, `get_stats`, `reinforce_memory`, `forget_memory`, `explain_memory`, and `close`. `perceive` extracts and consolidates candidates, retrieves trusted memories, packs a bounded context, reinforces selected records, stores the interaction when appropriate, and applies decay/archive rules. Results expose lifecycle information, evidence, `selected_ids`, and `dropped_ids`.
 
-## 5. Supported providers
+`forget_memory(id, namespace=...)` archives the matching record in that namespace; it is an explicit lifecycle operation, not a promise to erase SQLite backups or application logs. See [SECURITY.md](SECURITY.md) for deletion and sensitive-data limits.
 
-| Provider | Environment variable | Default model |
-|----------|----------------------|---------------|
-| Qwen Cloud | `DASHSCOPE_API_KEY` | qwen-plus |
-| DeepSeek | `DEEPSEEK_API_KEY` | deepseek-chat |
-| OpenRouter | `OPENROUTER_API_KEY` | openai/gpt-4o |
-| OpenAI | `OPENAI_API_KEY` | gpt-4o |
-| Anthropic | `ANTHROPIC_API_KEY` | claude-sonnet-4 |
+## MCP server prerequisites and behavior
 
----
+MCP server mode requires the `mcp` extra. Install it from a release distribution with `python -m pip install "alfredo-memory-agent[mcp]"`, or from a checkout with the editable command above. The core offline CLI and Python API do **not** require this extra. The server itself uses deterministic offline embeddings only when configured with the global `--offline` option; otherwise it uses the configured embedding provider and may require its model dependency. MCP memory operations do not require an LLM API key.
 
-## 6. Architecture
+The server exposes `memory__perceive`, `memory__search`, `memory__store`, `memory__stats`, `memory__forget`, and `memory__reinforce`. Every tool that accepts `namespace` passes it through the `MemoryAgent` facade. A namespace is a storage and session boundary: retrieval, statistics, store, forget, and reinforcement do not cross it. Responses include the effective namespace where applicable, plus lifecycle and evidence fields; perceive/search expose `selected_ids` and `dropped_ids`.
 
-```text
-┌─────────────────────────────────────────────────────┐
-│                    Client                           │
-│  (Hermes / Claude Desktop / Cursor / script.py)     │
-└────────────────┬────────────────────────────────────┘
-                 │ MCP protocol (stdio or HTTP)
-                 ▼
-┌─────────────────────────────────────────────────────┐
-│              MemoryAgent MCP Server                  │
-│                                                      │
-│  Tools: perceive │ search │ store │ stats │ forget   │
-└──────────────────┬──────────────────────────────────┘
-                   │ internal calls
-                   ▼
-┌─────────────────────────────────────────────────────┐
-│              MemoryAgent Core                        │
-│                                                      │
-│  Orchestrator → MemoryStore → SQLite                 │
-│              → Embeddings → sentence-transformers    │
-│              → Forgetting → Ebbinghaus curve         │
-│              → Retrieval → Scoring + MMR             │
-└─────────────────────────────────────────────────────┘
+### Hermes recipe
+
+Hermes supports both transports. The `mcp` extra is **required** for Alfredo's server; it is not needed by the offline CLI. Stdio is the simplest local, no-API-key path:
+
+```bash
+hermes mcp add memory-agent --command python --args "-m,memory_agent,mcp"
+python -m memory_agent --offline mcp
 ```
 
----
+For HTTP, start the server in one terminal and point Hermes at the reported `/mcp` endpoint:
 
-## 7. Production recommendations
+```bash
+python -m memory_agent --offline mcp --http --host localhost --port 8090
+```
 
-1. Run the MCP server as a supervised service.
-2. Back up the native SQLite vault.
-3. Set a stable `ALFREDO_HOME` before deployment.
-4. Use one database per agent/user boundary when memory isolation matters.
-5. Monitor database size and retrieval latency as memories grow.
+Use `namespace: "tenant-a"` in each tool call to keep Hermes sessions isolated. The HTTP transport is the server's SSE mode; it prints `http://localhost:8090/mcp` when it starts.
+
+### Claude Desktop recipe
+
+Claude Desktop can launch the same stdio command. The `mcp` extra is **required** for the server, while no extra and no API key are needed for the offline CLI itself. In Claude Desktop's MCP configuration, use an absolute interpreter when necessary:
+
+```json
+{
+  "mcpServers": {
+    "alfredo-memory": {
+      "command": "python",
+      "args": ["-m", "memory_agent", "mcp"],
+      "env": {"MEMORY_AGENT_DB": ".alfredo/claude.db"}
+    }
+  }
+}
+```
+
+The HTTP alternative is:
+
+```bash
+python -m memory_agent --offline mcp --http --host localhost --port 8090
+```
+
+Configure Claude Desktop's HTTP MCP URL as `http://localhost:8090/mcp` if your client supports HTTP MCP. Include `namespace` in every tool argument; an omitted namespace is a distinct `null` scope, not a wildcard.
+
+### Cursor recipe
+
+Cursor can use either a local stdio server or the HTTP endpoint. The `mcp` extra is **required** to run the server; offline operation needs no API key. A stdio entry is equivalent to:
+
+```json
+{
+  "mcpServers": {
+    "alfredo-memory": {
+      "command": "python",
+      "args": ["-m", "memory_agent", "mcp"],
+      "env": {"MEMORY_AGENT_DB": ".alfredo/cursor.db"}
+    }
+  }
+}
+```
+
+For HTTP, run:
+
+```bash
+python -m memory_agent --offline mcp --http --port 8090
+```
+
+Then set Cursor's MCP server URL to `http://localhost:8090/mcp` and pass a stable namespace such as `workspace-alfredo` on every `memory__search`, `memory__store`, `memory__perceive`, `memory__stats`, `memory__forget`, and `memory__reinforce` call.
+
+### Generic MCP client recipe
+
+Any MCP-compatible client can choose stdio or HTTP. The `mcp` extra is **required** for Alfredo's MCP server; it is not required for the core/offline CLI. Neither transport needs an API key for local deterministic operation.
+
+Stdio configuration:
+
+```json
+{
+  "command": "python",
+  "args": ["-m", "memory_agent", "mcp"],
+  "env": {"MEMORY_AGENT_DB": ".alfredo/generic.db"}
+}
+```
+
+HTTP configuration:
+
+```bash
+python -m memory_agent --offline mcp --http --host localhost --port 8090
+```
+
+Connect to `http://localhost:8090/mcp`. In either transport, call for example:
+
+```json
+{
+  "name": "memory__search",
+  "arguments": {"query": "preferred language", "top_k": 5, "namespace": "tenant-a"}
+}
+```
+
+The namespace is an explicit boundary, not a presentation label. Use the same value for all operations that belong to one agent or tenant, and use `memory__forget` for an explicit user request.
+
+## Optional hosted LLM connector
+
+The `llm` command is separate from offline memory and requires the provider's API key. It is not needed for MCP or the local SDK. Provider names accepted by the CLI are `qwencloud`, `deepseek`, `openrouter`, `openai`, and `anthropic`; configure the corresponding provider dependency and environment variable before using it. Keep API-key-bearing deployment configuration out of SQLite records and issue trackers.
+
+## Verification
+
+From a checkout, the deterministic lifecycle demo is available at [`examples/demo_lifecycle.py`](examples/demo_lifecycle.py). The synthetic comparison fixtures and their privacy boundary are described in [`README.md`](README.md) and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). These links are repository paths, not hosted-service commitments.

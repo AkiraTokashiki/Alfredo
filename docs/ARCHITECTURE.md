@@ -1,97 +1,71 @@
-# MemoryAgent Architecture
+# MemoryAgent architecture
 
-MemoryAgent is submitted to **Track 1: MemoryAgent** of the Global AI Hackathon Series with Qwen Cloud.
+MemoryAgent is a local-first Python SDK and CLI. Its durable boundary is a SQLite vault owned by the caller. The package does not require a hosted backend, tenant service, or remote memory API. MCP and optional LLM integrations are adapters around the same facade; they do not replace the local lifecycle.
 
-The project provides persistent, cross-session memory for an AI agent. It stores user preferences, facts, and interaction summaries in SQLite, retrieves relevant memories with semantic embeddings and multi-factor ranking, reinforces useful memories, archives stale memories through a forgetting curve, and includes a synthetic vault benchmark for sustained-memory behavior.
-
-Rendered diagram asset: [`docs/architecture.svg`](./architecture.svg).
-
-## System diagram
+## Boundaries and data flow
 
 ```mermaid
 flowchart LR
-    User[User / Judge] --> UI[CLI, MCP client, or HTTP caller]
-
-    UI --> Backend[MemoryAgent Backend on Alibaba Cloud]
-    Backend --> MCP[MemoryAgent MCP / LLM Connector]
-    MCP --> Core[MemoryAgent Core Orchestrator]
-
-    Core --> Extract[Preference and Fact Extraction]
-    Core --> Retrieve[Semantic Retrieval + MMR]
-    Core --> Forget[Forgetting Curve + Reinforcement]
-    Core --> Store[SQLite Memory Store]
-    Core --> Trust[Trust Policy: Expiry, Supersedes, Confidence, Security]
-
-    Store --> DB[(Persistent SQLite Database)]
-    Retrieve --> Embed[Sentence Transformer Embeddings]
-    Store --> Bench[Alfredo Vault Benchmark\\n25 users / 5,000 memories / 500 questions]
-
-    MCP --> Qwen[Qwen Cloud OpenAI-Compatible Chat API]
-    Backend --> Alibaba[Alibaba Cloud Function Compute / ECS Runtime]
-
-    Qwen --> MCP
-    Core --> UI
+    Input[Agent input] --> Facade[MemoryAgent facade]
+    Facade --> Life[Perceive lifecycle]
+    Life --> SQLite[(Local SQLite vault)]
+    Life --> Packet[Bounded recall packet]
+    Packet --> Context[Agent context]
+    MCP[MCP stdio or HTTP adapter] --> Facade
+    CLI[alfredo / python -m memory_agent] --> Facade
+    Python[Python API] --> Facade
+    Bench[Synthetic benchmark fixtures] -. separate inputs .-> SQLite
 ```
 
-## Runtime flow
+The CLI, Python API, and MCP tools all pass through `MemoryAgent`. The facade owns namespace selection and lifecycle ordering. `MemoryStore`, embedding, retrieval, and trust behavior are replaceable through ports, but an adapter must preserve the lifecycle rather than implement a second memory loop.
 
-1. The user sends a message through the CLI, MCP client, or deployed backend endpoint.
-2. MemoryAgent extracts candidate memories such as preferences, habits, and facts.
-3. The retrieval engine searches active memories using semantic similarity, recency, importance, and recall strength.
-4. Retrieved memories are formatted into a bounded context block for Qwen Cloud.
-5. Qwen Cloud generates the response using the current message plus memory context.
-6. MemoryAgent stores the interaction, reinforces memories that were recalled, and decays stale memories.
-7. Across later sessions, the same database lets the agent recall previous preferences and avoid filling the context window with irrelevant history.
-8. For benchmark runs, the same SQLite vault is seeded from synthetic JSON/JSONL data and evaluated against 500 questions that test temporal recall, contradiction updates, ignored-memory filtering, low-confidence abstention, and prompt-injection resistance.
+SQLite is local-first: `MemoryStore` persists memories, sessions, embeddings, namespace, metadata, and archive state in the configured database. `MemoryAgent(db_path=...)` selects a vault explicitly; the CLI can select one with `--db`; the MCP adapter resolves `MEMORY_AGENT_DB` or its local default. Filesystem access, backups, permissions, and process isolation remain deployment responsibilities.
 
-## Core components
+## Real lifecycle
 
-| Component | Path | Responsibility |
+One `perceive(...)` call performs the following ordered lifecycle. The names describe implementation responsibilities, not an external workflow promise:
+
+1. **Perceive** — accept input, optional response, and an explicit `namespace`/`user_id`; update session state without treating a namespace as a wildcard.
+2. **Extract** — identify candidate preferences, facts, habits, and forget requests from the input. Candidate records inherit the active namespace and provenance metadata.
+3. **Validate / trust** — consolidate candidates and evaluate retrieval evidence through the trust policy. Confidence and policy reasons are attached before a candidate can enter context; unknown or untrusted records can be omitted.
+4. **Store** — persist accepted memories, embeddings, and interaction summaries in SQLite. A single cycle commits through the store after its decisions are complete.
+5. **Retrieve** — search active records in the active namespace using the configured embedding and ranking signals (semantic score, recency, importance, strength, and diversity).
+6. **Pack context** — apply the context budget to trusted retrieval results. The `RecallPacket` exposes `selected_ids`, `dropped_ids`, omitted records, reasons, and bounded context accounting rather than copying the vault into a prompt.
+7. **Reinforce** — selected memories receive a strength boost and are updated in the same namespace.
+8. **Supersede** — consolidation detects a matching or contradictory candidate and archives/replaces the previous record when the configured decision says the new record supersedes it. The prior record remains inspectable as archived state.
+9. **Decay / archive** — the forgetting curve updates active strengths at the configured interval; records below the archival threshold are archived. An explicit `forget_memory` request archives the matching record immediately and is separate from time-based decay.
+
+The returned dictionary contains `recollections`, `recollection_text`, `recall_packet`, `evidence`, consolidation decisions, archive counts, and a `lifecycle` object with namespace and decay/archive status. Search and MCP responses similarly expose evidence and selected/dropped IDs.
+
+## Embedding and provider guards
+
+The default configured provider is `sentence-transformers` (`all-MiniLM-L6-v2`, dimension 384) when that optional dependency is available. `--offline` selects the deterministic local hashed-token embedding provider and does not download model weights or require an API key. Deterministic embeddings are for reproducible local/offline behavior; they are not a claim of semantic parity with a learned model.
+
+Stored vectors carry provider/model and dimension metadata. Before cosine similarity, the retrieval/store boundary checks provider identity and vector dimension. A provider or dimension mismatch is rejected rather than silently comparing incompatible vectors. To change either value, use a separate SQLite vault or reindex the existing records with the new configuration. A provider adapter may improve encoding, but it must not duplicate extraction, trust, context packing, reinforcement, supersession, or decay.
+
+## Namespace isolation
+
+`namespace` is applied to sessions, memories, embeddings, retrieval, statistics, reinforcement, supersession, and forget operations. `None` is an explicit unscoped value; it does not mean “all namespaces.” Callers that represent users or tenants should pass a stable namespace on every operation and enforce their own authentication and authorization before invoking the SDK or exposing MCP.
+
+Namespace filtering is an application boundary, not a complete security boundary: a process with filesystem access to the SQLite vault can inspect or alter other namespaces. Use separate database files and OS-level permissions when stronger isolation is required.
+
+## Trust, prompt context, and privacy boundary
+
+Retrieval evidence records component scores, matched signals, trust classification, and a reason. The context packer selects only records that satisfy the trust policy and fit the budget; dropped IDs make exclusion observable. This is a control against stale, low-confidence, superseded, or prompt-injection-shaped text, not a guarantee that arbitrary input is safe. Treat recalled text as untrusted data and keep system instructions outside memory content.
+
+The checked-in Alfredo Vault fixtures are **synthetic** benchmark data. They exercise temporal recall, supersession, explicit forgetting, abstention, and prompt-injection cases to make decisions reproducible. A synthetic benchmark is **not a security or privacy audit and is no substitute for production privacy controls**. It does not authorize storing secrets, personal data, or regulated records. Production operators must define retention, deletion, access control, encryption, backup handling, and threat-model tests for their deployment.
+
+## Public components
+
+| Component | Source | Responsibility |
 | --- | --- | --- |
-| Orchestrator | `src/memory_agent/agent/orchestrator.py` | Runs perceive → extract → retrieve → memorize → decay. |
-| Decision extraction | `src/memory_agent/agent/decision.py` | Extracts preferences, facts, and habits from natural language. |
-| Store | `src/memory_agent/core/memory_store.py` | Persists memories, embeddings, tags, and sessions in SQLite. |
-| Retrieval | `src/memory_agent/core/retrieval.py` | Ranks memories with semantic score, recency, importance, strength, and MMR diversity. |
-| Forgetting | `src/memory_agent/core/forgetting.py` | Applies Ebbinghaus decay and reinforcement. |
-| LLM connector | `src/memory_agent/integrations/llm_connector.py` | Sends memory-augmented prompts to Qwen Cloud or another OpenAI-compatible provider. |
-| Alibaba proof | `deploy/alibaba_cloud_proof.py` | Demonstrates the deployment/runtime checks for Alibaba Cloud and Qwen Cloud APIs. |
-| Vault benchmark | `src/memory_agent/benchmark.py` | Loads synthetic benchmark data, seeds SQLite, evaluates trust-policy questions, and writes reports. |
+| Facade/orchestrator | `src/memory_agent/agent/orchestrator.py` | Runs the lifecycle and returns explainable results. |
+| Extraction/consolidation | `src/memory_agent/agent/decision.py`, `core/consolidation.py` | Produces candidates and decides updates/supersession. |
+| SQLite store | `src/memory_agent/core/memory_store.py` | Persists namespace-scoped records, sessions, embeddings, and archive state. |
+| Embeddings | `src/memory_agent/core/embeddings.py`, `core/deterministic_embeddings.py` | Encodes text using configured learned or deterministic offline provider. |
+| Retrieval/context | `src/memory_agent/core/retrieval.py`, `core/context_budget.py` | Scores candidates, applies diversity, trust evidence, and selected/dropped IDs. |
+| Forgetting | `src/memory_agent/core/forgetting.py` | Applies reinforcement, decay, and archival thresholds. |
+| MCP adapter | `src/memory_agent/integrations/mcp_server.py` | Exposes facade operations over stdio or HTTP/SSE. |
+| Benchmark | `src/memory_agent/benchmark.py` | Runs separate synthetic fixtures and writes comparison reports. |
 
-## Alibaba Cloud deployment target
-
-The backend can be deployed to Alibaba Cloud Function Compute or ECS. The required proof recording should show:
-
-1. the Alibaba Cloud console resource running;
-2. the deployed endpoint or runtime invocation;
-3. a call that reaches MemoryAgent;
-4. the deployment proof command from `deploy/alibaba_cloud_proof.py` checking Alibaba Cloud Function Compute and Qwen Cloud API connectivity.
-
-## Qwen Cloud integration
-
-The LLM connector uses Qwen Cloud's OpenAI-compatible chat endpoint:
-
-```text
-https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
-```
-
-Use `DASHSCOPE_API_KEY` in the deployed environment.
-## Public contracts and provider boundaries
-
-`MemoryAgent` is the stable facade. Storage, embedding, retrieval and trust
-providers are injected through small protocols; adapters never reimplement
-the memory lifecycle. SQLite is the default durable store. Provider name and
-dimension are checked before cosine similarity, so callers must reindex or
-use a separate database when providers differ.
-
-Retrieval returns explainable evidence: component scores, matched signals,
-trust classification, reason, selected IDs, dropped IDs and bounded-context
-accounting. A single perceive cycle commits through the store port after trust
-filtering, reinforcement and archival decisions complete.
-
-## Reproducible benchmark
-
-Run the offline comparison from the README with the checked-in synthetic
-fixtures. The report includes raw-history, semantic-RAG and Alfredo baselines,
-dataset/config hashes, seed/run identifiers, security events, context size and
-latency p50/p95. User records must carry `synthetic: true`; this marker is a
-benchmark input contract and is not a substitute for privacy review of data.
+For copyable commands and MCP client recipes, see [`INTEGRATION.md`](../INTEGRATION.md). For benchmark limitations, see [`README.md`](../README.md#benchmark-evidence).
