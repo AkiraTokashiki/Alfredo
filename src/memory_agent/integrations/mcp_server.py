@@ -66,6 +66,16 @@ def _ensure_session(*, namespace: str | None = None) -> None:
     agent = _get_agent()
     if agent.state.session_id is None:
         agent.init_session("mcp-auto", namespace=namespace)
+    else:
+        if hasattr(agent, "namespace"):
+            current_namespace = agent.namespace
+        elif hasattr(agent.state, "namespace"):
+            current_namespace = agent.state.namespace
+        else:
+            return
+        if current_namespace != namespace and hasattr(agent, "end_session"):
+            agent.end_session()
+            agent.init_session("mcp-auto", namespace=namespace)
 def _public(value: Any) -> Any:
     """Convert public model values into JSON-safe primitives."""
     if isinstance(value, Enum):
