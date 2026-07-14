@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import json
 import math
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -278,3 +280,136 @@ def test_deactivation_removes_active_edge_but_retains_audit_history(
     assert history[0].id == relation_id
     assert history[0].relation_type == "supersedes"
     assert history[0].is_active is False
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "lifecycle"),
+    [
+        ("source", "soft-delete"),
+        ("target", "soft-delete"),
+        ("source", "archive"),
+        ("target", "archive"),
+        ("source", "hard-delete"),
+        ("target", "hard-delete"),
+    ],
+    ids=lambda value: str(value),
+)
+def test_inactive_or_deleted_endpoint_has_no_active_relation_and_rejects_new_edge(
+    relation_store: tuple[MemoryStore, dict[str, int]],
+    endpoint: str,
+    lifecycle: str,
+) -> None:
+    """Endpoint lifecycle changes must invalidate the relation graph edge."""
+    store, ids = relation_store
+    relation = _relation(ids["alpha_source"], ids["alpha_target"])
+    store.add_relation(relation)
+    endpoint_id = ids[f"alpha_{endpoint}"]
+
+    if lifecycle == "archive":
+        store.archive_memory(endpoint_id, reason="relation lifecycle contract", namespace="alpha")
+    else:
+        store.delete_memory(
+            endpoint_id,
+            hard=lifecycle == "hard-delete",
+            namespace="alpha",
+        )
+
+    assert store.get_relations(
+        ids["alpha_source"],
+        namespace="alpha",
+        active_only=True,
+    ) == []
+    with pytest.raises(ValueError, match="(active|existing|endpoint)"):
+        store.add_relation(relation)
+
+
+@pytest.mark.parametrize(
+    ("source_id", "target_id"),
+    [
+        ("1", 2),
+        (1, "2"),
+        (True, 2),
+        (1, False),
+    ],
+    ids=["string-source", "string-target", "bool-source", "bool-target"],
+)
+def test_relation_rejects_non_integer_endpoint_ids(
+    relation_store: tuple[MemoryStore, dict[str, int]],
+    source_id: object,
+    target_id: object,
+) -> None:
+    """IDs are database integer identifiers, not coercible strings or booleans."""
+    store, _ids = relation_store
+    with pytest.raises(TypeError, match="integer|int"):
+        store.add_relation(_relation(source_id, target_id))  # type: ignore[arg-type]
+
+
+
+@pytest.mark.parametrize(
+    "relation_type",
+    [1, None, ["supports"]],
+    ids=["integer", "none", "list"],
+)
+def test_relation_rejects_non_string_relation_type(
+    relation_store: tuple[MemoryStore, dict[str, int]],
+    relation_type: object,
+) -> None:
+    """Relation type is a named string, never an implicitly coerced value."""
+    store, ids = relation_store
+    with pytest.raises(TypeError, match="string|str"):
+        store.add_relation(
+            _relation(
+                ids["alpha_source"],
+                ids["alpha_target"],
+                relation_type=relation_type,  # type: ignore[arg-type]
+            )
+        )
+
+
+def test_concurrent_duplicate_add_is_idempotent_under_unique_race(tmp_path: Path) -> None:
+    """Two writers racing on one edge must both observe one committed relation."""
+    db_path = tmp_path / "relation-race.db"
+    seed = MemoryStore(db_path)
+    seed.initialize()
+    source_id = seed.add_memory(MemoryRecord(content="source", namespace="alpha"), namespace="alpha")
+    target_id = seed.add_memory(MemoryRecord(content="target", namespace="alpha"), namespace="alpha")
+    seed.close()
+    relation = _relation(source_id, target_id)
+    barrier = threading.Barrier(2)
+
+    def add_once() -> int:
+        writer = MemoryStore(db_path)
+        try:
+            barrier.wait()
+            return writer.add_relation(
+                MemoryRelation(
+                    source_id=relation.source_id,
+                    target_id=relation.target_id,
+                    relation_type=relation.relation_type,
+                    confidence=relation.confidence,
+                    namespace=relation.namespace,
+                    source=relation.source,
+                )
+            )
+        finally:
+            writer.close()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        relation_ids = list(executor.map(lambda _index: add_once(), range(2)))
+
+    assert relation_ids[0] == relation_ids[1]
+    check = MemoryStore(db_path)
+    check.initialize()
+    try:
+        stored = check.get_relations(source_id, namespace="alpha", active_only=True)
+        assert len(stored) == 1
+        assert stored[0].id == relation_ids[0]
+    finally:
+        check.close()
+
+
+def test_memory_relation_is_exported_from_package() -> None:
+    """The relation model is part of the package-level public contract."""
+    from memory_agent import MemoryRelation as PublicMemoryRelation
+
+    assert PublicMemoryRelation is MemoryRelation
