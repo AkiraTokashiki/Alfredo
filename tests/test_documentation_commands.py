@@ -162,12 +162,49 @@ def test_lifecycle_demo_closes_active_session_when_perceive_fails(monkeypatch) -
     assert events == ["construct", "init", "perceive", "end", "close"]
 
 
+def test_lifecycle_demo_does_not_repeat_failed_end_session(monkeypatch) -> None:
+    repo_root = Path(__file__).parents[1]
+    script = repo_root / "examples" / "demo_lifecycle.py"
+    spec = importlib.util.spec_from_file_location("demo_lifecycle_end_failure", script)
+    assert spec is not None and spec.loader is not None
+    demo_lifecycle = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(demo_lifecycle)
+    events: list[str] = []
+
+    class EndingAgent:
+        def __init__(self, **_kwargs) -> None:
+            events.append("construct")
+
+        def init_session(self, _label: str) -> None:
+            events.append("init")
+
+        def perceive(self, _text: str) -> dict:
+            events.append("perceive")
+            return {}
+
+        def end_session(self) -> None:
+            events.append("end")
+            raise RuntimeError("end failure")
+
+        def close(self) -> None:
+            events.append("close")
+
+    monkeypatch.setattr(demo_lifecycle, "MemoryAgent", EndingAgent)
+    with pytest.raises(RuntimeError, match="end failure"):
+        demo_lifecycle.main()
+    assert events == ["construct", "init", "perceive", "end", "close"]
+
+
 def test_basic_demo_runs_without_remote_model_download() -> None:
     repo_root = Path(__file__).parents[1]
     script = repo_root / "examples" / "demo_basic.py"
+    env = os.environ.copy()
+    env.pop("PYTHONUTF8", None)
+    env.pop("PYTHONIOENCODING", None)
     result = subprocess.run(
         [sys.executable, str(script)],
         cwd=repo_root,
+        env=env,
         capture_output=True,
         text=True,
         check=True,

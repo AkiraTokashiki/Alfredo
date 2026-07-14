@@ -10,7 +10,13 @@ from memory_agent.core.config import MemoryAgentConfig
 from memory_agent.core.deterministic_embeddings import DeterministicEmbeddingEngine
 
 
+def _configure_output() -> None:
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if reconfigure is not None:
+        reconfigure(encoding="utf-8", errors="replace")
+
 def main():
+    _configure_output()
     print("=" * 60)
     print("Alfredo MemoryAgent — Basic Demo")
     print("=" * 60)
@@ -20,6 +26,7 @@ def main():
         db_path = f.name
 
     agent = None
+    active_session = False
     try:
         config = MemoryAgentConfig.default()
         config.embedding.provider = "deterministic"
@@ -32,6 +39,7 @@ def main():
             ),
         )
         agent.init_session("basic-demo")
+        active_session = True
 
         interactions = [
             "Hi! My name is Manija",
@@ -81,8 +89,10 @@ def main():
                 if cleanup_error is None:
                     cleanup_error = exc
 
-        if agent is not None:
+        if agent is not None and active_session:
+            active_session = False
             run_cleanup(agent.end_session)
+        if agent is not None:
             run_cleanup(agent.close)
         run_cleanup(lambda: Path(db_path).unlink(missing_ok=True))
         if not primary_active and cleanup_error is not None:

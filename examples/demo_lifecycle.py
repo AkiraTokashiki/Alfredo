@@ -89,22 +89,22 @@ def main() -> None:
             active_session = True
             print("[1] learn preference")
             _show_result(agent.perceive("I prefer Python for automation"))
-            agent.end_session()
             active_session = False
+            agent.end_session()
 
             agent.init_session("recall across session")
             active_session = True
             print("[2] recall across session")
             _show_result(agent.perceive("What programming language do I prefer?"))
-            agent.end_session()
             active_session = False
+            agent.end_session()
 
             agent.init_session("supersede stale preference")
             active_session = True
             print("[3] supersede stale preference")
             _show_result(agent.perceive("I do not like Python"))
-            agent.end_session()
             active_session = False
+            agent.end_session()
 
             agent.init_session("bounded context and trust evidence")
             active_session = True
@@ -137,8 +137,8 @@ def main() -> None:
             )
             print("[4] bounded context and trust evidence")
             _show_result(agent.perceive("What do you remember about my preferences?"))
-            agent.end_session()
             active_session = False
+            agent.end_session()
         finally:
             primary_active = sys.exc_info()[0] is not None
             cleanup_error: BaseException | None = None

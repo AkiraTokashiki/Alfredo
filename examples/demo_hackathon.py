@@ -14,6 +14,11 @@ from memory_agent.models import MemoryRecord
 
 
 
+def _configure_output() -> None:
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if reconfigure is not None:
+        reconfigure(encoding="utf-8", errors="replace")
+
 def print_turn(title: str, result: dict) -> None:
     print(f"\n=== {title} ===")
     print(result["recollection_text"] or "[no recollections]")
@@ -26,9 +31,11 @@ def print_turn(title: str, result: dict) -> None:
 
 
 def main() -> None:
+    _configure_output()
     with tempfile.TemporaryDirectory(prefix="alfredo-hackathon-") as temp_dir:
         db_path = Path(temp_dir) / "hackathon_demo.db"
         agent = None
+        active_session = False
         try:
             print("Alfredo MemoryAgent — Hackathon Demo")
             config = MemoryAgentConfig.default()
@@ -43,21 +50,28 @@ def main() -> None:
             )
 
             agent.init_session("session 1")
+            active_session = True
             print_turn(
                 "Session 1: learn preferences",
                 agent.perceive("I like Python and I prefer concise answers"),
             )
+            active_session = False
             agent.end_session()
 
             agent.init_session("session 2")
+            active_session = True
             print_turn("Session 2: recall preference", agent.perceive("What language do I like?"))
+            active_session = False
             agent.end_session()
 
             agent.init_session("session 3")
+            active_session = True
             print_turn("Session 3: update stale preference", agent.perceive("I do not like Python"))
+            active_session = False
             agent.end_session()
 
             agent.init_session("session 4")
+            active_session = True
             for idx in range(20):
                 agent.store_memory(
                     MemoryRecord(content=f"low-importance noise {idx}", importance=0.1)
@@ -84,8 +98,10 @@ def main() -> None:
                     if cleanup_error is None:
                         cleanup_error = exc
 
-            if agent is not None:
+            if agent is not None and active_session:
+                active_session = False
                 run_cleanup(agent.end_session)
+            if agent is not None:
                 run_cleanup(agent.close)
             run_cleanup(lambda: db_path.unlink(missing_ok=True))
             if not primary_active and cleanup_error is not None:
