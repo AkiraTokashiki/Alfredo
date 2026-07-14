@@ -134,11 +134,19 @@ class TaskMemoryPackStore:
         if memory.superseded_by is not None:
             return False
         metadata = memory.metadata or {}
-        if metadata.get("task_name") != task_name:
+        candidate_name = metadata.get("task_name")
+        if candidate_name is None:
+            try:
+                candidate_name = json.loads(memory.content).get("task_name")
+            except (TypeError, ValueError, json.JSONDecodeError, AttributeError):
+                candidate_name = None
+        if candidate_name != task_name:
             return False
-        if metadata.get("stale") is True:
+        stale = metadata.get("stale")
+        if stale is True or str(stale).lower() in {"true", "1", "yes"}:
             return False
-        if str(metadata.get("lifecycle", "active")).lower() not in {"active", "current"}:
+        lifecycle = str(metadata.get("lifecycle", "active")).lower()
+        if lifecycle not in {"active", "current"}:
             return False
         if str(metadata.get("status", "active")).lower() in {
             "stale",
@@ -152,7 +160,13 @@ class TaskMemoryPackStore:
 
     def _records(self, task_name: str, namespace: str | None) -> list[MemoryRecord]:
         records = self.memory_store.get_memories_by_type("procedural", namespace=namespace)
-        return [record for record in records if self._is_candidate(record, task_name)]
+        records = [record for record in records if self._is_candidate(record, task_name)]
+        return sorted(
+            records,
+            key=lambda record: (record.created_at or "", record.id or 0),
+            reverse=True,
+        )
+
 
     @staticmethod
     def _unpack(record: MemoryRecord) -> TaskMemoryPack:
@@ -197,8 +211,8 @@ def build_task_context(
     *,
     namespace: str | None,
     store: TaskMemoryPackStore,
-    budget_chars: int,
-    reserved_chars: int = 0,
+    budget_chars: int = 2400,
+    reserved_chars: int = 600,
 ) -> RecallPacket:
     """Build a bounded packet from one active pack and its required memories.
 
