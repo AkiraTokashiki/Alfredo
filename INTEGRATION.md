@@ -43,11 +43,7 @@ alfredo --offline --db .alfredo/memory.db stats --namespace tenant-a
 alfredo --offline --db .alfredo/memory.db search "preferred language" --namespace tenant-a
 alfredo --offline --db .alfredo/memory.db memories --namespace tenant-a
 alfredo --offline --db .alfredo/memory.db forget 12 --namespace tenant-a
-alfredo --offline --db .alfredo/memory.db benchmark compare \
-  --users benchmarks/alfredos_vault/users.json \
-  --memories benchmarks/alfredos_vault/memories.jsonl \
-  --questions benchmarks/alfredos_vault/evaluation_questions.jsonl \
-  --report .alfredo/benchmark-comparison.json --seed 42 --run local-offline
+alfredo --offline --db .alfredo/memory.db benchmark compare --users benchmarks/alfredos_vault/users.json --memories benchmarks/alfredos_vault/memories.jsonl --questions benchmarks/alfredos_vault/evaluation_questions.jsonl --report .alfredo/benchmark-comparison.json --seed 42 --run local-offline
 ```
 
 The module form is equivalent: replace `alfredo` with `python -m memory_agent`. `chat` is a local interactive session. `stats`, `search`, `memories`, and `forget` accept an optional namespace and operate through the same facade as the API. `benchmark compare` is a synthetic, deterministic comparison and must be run with `--offline` (or the global `--offline`).

@@ -98,12 +98,7 @@ This benchmark is **not a security or privacy audit**, is not production data, a
 To run the documented offline comparison from a checkout:
 
 ```bash
-python -m memory_agent --offline benchmark compare \
-  --users benchmarks/alfredos_vault/users.json \
-  --memories benchmarks/alfredos_vault/memories.jsonl \
-  --questions benchmarks/alfredos_vault/evaluation_questions.jsonl \
-  --report .alfredo/benchmark-comparison.json \
-  --seed 42 --run local-offline
+python -m memory_agent --offline benchmark compare --users benchmarks/alfredos_vault/users.json --memories benchmarks/alfredos_vault/memories.jsonl --questions benchmarks/alfredos_vault/evaluation_questions.jsonl --report .alfredo/benchmark-comparison.json --seed 42 --run local-offline
 ```
 
 ## Integration and community
