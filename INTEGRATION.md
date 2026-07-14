@@ -17,7 +17,7 @@ The `alfredo` command is installed by the package. The module entry point remain
 python -m memory_agent --offline quickstart
 ```
 
-`--offline` selects deterministic hashed-token embeddings. The quickstart uses a temporary SQLite database unless `--db` is supplied, performs a cross-turn recall, and requires **no API key, network request, or model download**. That no-network guarantee applies to the offline CLI; the Python API is offline only when its config selects the deterministic provider, and the MCP server recipes below use the server's configured/default provider.
+`--offline` selects deterministic hashed-token embeddings. The quickstart uses a temporary SQLite database unless `--db` is supplied, performs a cross-turn recall, and requires **no API key, network request, or model download**. That no-network guarantee applies to the offline CLI; the Python API is offline only when its config selects the deterministic provider, while the MCP server recipes below use the server's default provider.
 
 For a checkout, an editable install is useful during development. Quote extras so the command is safe in Windows PowerShell and POSIX shells:
 
@@ -25,7 +25,7 @@ For a checkout, an editable install is useful during development. Quote extras s
 python -m pip install -e ".[mcp]"
 ```
 
-The `mcp` extra is required for the MCP server (`mcp` and `httpx`). The current server starts a `MemoryAgent` with its configured/default embedding provider; the default is `sentence-transformers`, so install the `semantic` extra as well unless you provide a different provider. The server command does not consume the global CLI `--offline` setting. MCP operations do not require an LLM API key, but the default semantic provider may require model dependencies or a model download:
+The `mcp` extra is required for the MCP server (`mcp` and `httpx`). The current server starts with the default `sentence-transformers` provider, so install the `semantic` extra as well. The MCP command does not expose a provider switch and does not consume the global CLI `--offline` setting. MCP operations do not require an LLM API key, but the default semantic provider may require model dependencies or a model download:
 
 ```powershell
 python -m pip install -e ".[semantic]"
@@ -56,6 +56,12 @@ The module form is equivalent: replace `alfredo` with `python -m memory_agent`. 
 
 `MemoryAgent` is the public orchestration facade. It accepts `db_path`, a `MemoryAgentConfig`, and optional injected store, embedding, retrieval, and trust ports. A minimal local example is:
 
+For this semantic example, install the optional provider dependency (it may download model weights on first use):
+
+```bash
+python -m pip install "alfredo-memory-agent[semantic]"
+```
+
 ```python
 from memory_agent.agent.orchestrator import MemoryAgent
 
@@ -81,16 +87,16 @@ Useful facade methods are `init_session`, `end_session`, `perceive`, `store_memo
 
 ## MCP server prerequisites and behavior
 
-MCP server mode requires the `mcp` extra. For the current default provider, install both extras from a release distribution with `python -m pip install "alfredo-memory-agent[mcp,semantic]"`, or from a checkout with `python -m pip install -e ".[mcp,semantic]"`. The core offline CLI and Python API do **not** require the `mcp` extra. The MCP command currently starts the server with its configured/default provider and is **not an offline mode**: do not add `--offline` to MCP commands. MCP memory operations do not require an LLM API key, but the default `sentence-transformers` provider may require its dependency and model download.
+MCP server mode requires the `mcp` extra. The current server starts with the default `sentence-transformers` embedding provider, so install both extras from a release distribution with `python -m pip install "alfredo-memory-agent[mcp,semantic]"`, or from a checkout with `python -m pip install -e ".[mcp,semantic]"`. The current `mcp` CLI command does not expose a provider switch and is **not an offline mode**: do not add `--offline` to MCP commands. MCP memory operations do not require an LLM API key, but the default provider may require its dependency and model download.
 
 The server exposes `memory__perceive`, `memory__search`, `memory__store`, `memory__stats`, `memory__forget`, and `memory__reinforce`. Every tool that accepts `namespace` passes it through the `MemoryAgent` facade. A namespace is a storage and session boundary: retrieval, statistics, store, forget, and reinforcement do not cross it. Responses include the effective namespace where applicable, plus lifecycle and evidence fields; perceive/search expose `selected_ids` and `dropped_ids`.
 
 ### Hermes recipe
 
-Hermes supports both transports. The `mcp` extra is **required** for Alfredo's server, and the default `sentence-transformers` provider also needs the `semantic` extra. These commands are not offline; they need the configured provider's dependencies/model, but no LLM API key is required by the MCP memory tools. Stdio is the simplest local path:
+Hermes supports both transports. The `mcp` extra is **required** for Alfredo's server, and the default `sentence-transformers` provider also needs the `semantic` extra. These commands are not offline; they need the default provider's dependencies/model, but no LLM API key is required by the MCP memory tools. Stdio is the simplest local path:
 
 ```bash
-hermes mcp add memory-agent --command python --args "-m,memory_agent,mcp"
+hermes mcp add memory-agent --command python --args "-m" --args "memory_agent" --args "mcp"
 python -m memory_agent mcp
 ```
 
@@ -152,7 +158,7 @@ Then set Cursor's MCP server URL to `http://localhost:8090/mcp` and pass a stabl
 
 ### Generic MCP client recipe
 
-Any MCP-compatible client can choose stdio or HTTP. The `mcp` extra is **required** for Alfredo's MCP server and the default provider also needs `semantic`; these transports are not offline mode and do not require an LLM API key. The configured embedding provider's dependencies still apply.
+Any MCP-compatible client can choose stdio or HTTP. The `mcp` extra is **required** for Alfredo's MCP server and the default provider also needs `semantic`; these transports are not offline mode and do not require an LLM API key. The default embedding provider's dependencies still apply.
 
 Stdio configuration:
 
@@ -183,7 +189,13 @@ The namespace is an explicit boundary, not a presentation label. Use the same va
 
 ## Optional hosted LLM connector
 
-The `llm` command is separate from offline memory and requires the provider's API key. It is not needed for MCP or the local SDK. Provider names accepted by the CLI are `qwencloud`, `deepseek`, `openrouter`, `openai`, and `anthropic`; configure the corresponding provider dependency and environment variable before using it. Keep API-key-bearing deployment configuration out of SQLite records and issue trackers.
+The `llm` command is separate from offline memory and requires the provider's API key. Install its optional HTTP dependency before use:
+
+```bash
+python -m pip install "alfredo-memory-agent[llm]"
+```
+
+It is not needed for MCP or the local SDK. Provider names accepted by the CLI are `qwencloud`, `deepseek`, `openrouter`, `openai`, and `anthropic`; configure the corresponding provider dependency and environment variable before using it. Keep API-key-bearing deployment configuration out of SQLite records and issue trackers.
 
 ## Verification
 
