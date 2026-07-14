@@ -12,6 +12,16 @@ Now:
 
 These are maintenance priorities for the current local SDK, not a promise of a hosted service or a release date.
 
+## Agentic memory benchmark milestones
+
+Shipped as an offline, opt-in benchmark capability:
+
+- **Structured fusion:** benchmark metadata joins memories with typed relations, proposal-first evolution decisions, and audit identifiers without changing the baseline strategies.
+- **Actionable context:** task packs, required-memory references, episodic consolidation/deduplication, trust evidence, forgetting outcomes, and bounded context accounting are visible per question.
+- **Reproducibility boundary:** only explicitly synthetic fixtures are reported as evidence; dataset hashes, run seeds, and offline execution keep reports deterministic. This is not a production security, privacy, or quality audit.
+
+Future milestones remain proposals rather than commitments: expand synthetic relation/evolution/task-pack fixtures, add reviewable report visualizations, and evaluate retention/forgetting policies against a documented threat model. Any production-facing claim requires real deployment controls, provenance review, and independent validation first.
+
 ## Future work (planned, not current commitments)
 
 The following ideas are intentionally future work. They have no shipped API, schedule, availability guarantee, or hosting commitment:

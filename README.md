@@ -95,6 +95,10 @@ The [Alfredo's Vault fixtures](benchmarks/alfredos_vault/) are a **synthetic** c
 
 This benchmark is **not a security or privacy audit**, is not production data, and does not establish that a deployment is safe for secrets or regulated workloads. Results depend on the fixture, configuration, and offline run; validate your own data, policies, and threat model.
 
+The comparison also has an opt-in `alfredo-agentic` strategy (`config={"agentic": true}`). It is a deterministic metadata view over the same local baseline behavior: structured memories are joined to typed relations, proposal-first evolution decisions, task packs, episodic consolidation/deduplication, forgetting and trust decisions, and bounded context accounting. Agentic rows expose selected and dropped IDs, trust evidence, relation IDs/types, evolution and audit IDs, task-pack IDs, episode deduplication, context size, and latency. The default comparison remains exactly the three baseline strategies; no remote model or API is used.
+
+Agentic evidence is fixture-derived and marked synthetic; dataset hashes and the run seed make repeated offline runs comparable. These fields describe exercised decisions, not a production guarantee. The benchmark cannot establish privacy, security, authorization, retention, deletion, or quality for a deployment, and it must not be read as an endorsement of any external memory framework. The terminology is informed by public discussions such as [MemGPT/Letta](https://github.com/cpacker/MemGPT) and [Graphiti](https://github.com/getzep/graphiti) for provenance only; Alfredo does not reuse their code or imply affiliation.
+
 To run the documented offline comparison from a checkout:
 
 ```bash

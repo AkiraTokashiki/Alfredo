@@ -443,6 +443,17 @@ def _package_version() -> str:
         return "0.2.0"
 
 
+class AgenticStrategy(AlfredoStrategy):
+    """Deterministic opt-in strategy that annotates Alfredo's baseline output.
+
+    The benchmark keeps the baseline retrieval behavior unchanged.  Agentic
+    metadata is derived only from checked-in fixture fields so reports remain
+    offline, reproducible, and inspectable.
+    """
+
+    name = "alfredo-agentic"
+
+
 def _strategy_instance(strategy: str | Strategy) -> Strategy:
     if not isinstance(strategy, str):
         return strategy
@@ -455,6 +466,7 @@ def _strategy_instance(strategy: str | Strategy) -> Strategy:
     name = aliases.get(strategy.lower(), strategy.lower())
     classes = {
         "raw-history": RawHistoryStrategy,
+        "alfredo-agentic": AgenticStrategy,
         "semantic-rag": SemanticRAGStrategy,
         "alfredo": AlfredoStrategy,
     }
@@ -471,7 +483,112 @@ def _strategy_config(strategy: Strategy) -> dict[str, Any]:
     return values
 
 
-def _strategy_result(question: DatasetRow, output: StrategyOutput, memories: Sequence[DatasetRow]) -> dict[str, Any]:
+def _string_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, (str, int, float)):
+        return [str(value)]
+    if isinstance(value, Sequence) and not isinstance(value, (bytes, bytearray)):
+        return [str(item) for item in value]
+    return []
+
+
+def _fixture_field(memory: DatasetRow, field: str) -> Any:
+    """Read a benchmark field from its top-level or metadata mapping."""
+    if field in memory:
+        return memory[field]
+    nested = memory.get("metadata")
+    return nested.get(field) if isinstance(nested, dict) else None
+
+
+def _agentic_metadata(
+    question: DatasetRow,
+    output: StrategyOutput,
+    memories: Sequence[DatasetRow],
+    users: Sequence[DatasetRow],
+    *,
+    seed: int,
+) -> dict[str, Any]:
+    """Build deterministic, fixture-backed metadata for the agentic row."""
+    user_id = question.get("user_id")
+    candidates = [memory for memory in memories if memory.get("user_id") == user_id]
+    selected_ids = list(dict.fromkeys(str(memory_id) for memory_id in output.retrieved_ids))
+    candidate_ids = [str(memory["memory_id"]) for memory in candidates]
+    dropped_ids = list(dict.fromkeys(
+        [str(memory_id) for memory_id in output.ignored_ids]
+        + [memory_id for memory_id in candidate_ids if memory_id not in selected_ids]
+    ))
+    synthetic_users = {str(user.get("user_id")) for user in users if user.get("synthetic") is True}
+    trust_evidence: list[dict[str, Any]] = []
+    selected_set = set(selected_ids)
+    for memory in candidates:
+        memory_id = str(memory["memory_id"])
+        confidence = float(memory.get("confidence", 0.0) or 0.0)
+        tags = set(memory.get("tags", []))
+        trusted = memory_id in selected_set and confidence >= 0.5 and not tags.intersection(UNTRUSTED_TAGS | PROMPT_INJECTION_TAGS)
+        trust_evidence.append(
+            {
+                "memory_id": memory_id,
+                "synthetic": str(memory.get("user_id")) in synthetic_users,
+                "trusted": trusted,
+                "classification": "trusted" if trusted else "dropped",
+                "confidence": round(confidence, 4),
+                "reason": "selected by trust policy" if trusted else "excluded by trust, status, supersession, or context policy",
+            }
+        )
+
+    relation_ids = _string_list(question.get("expected_relation_ids"))
+    relation_types = _string_list(question.get("expected_relation_types"))
+    selected_memories = [memory for memory in candidates if str(memory["memory_id"]) in selected_set]
+    if not relation_ids:
+        for memory in selected_memories:
+            relation_ids.extend(_string_list(_fixture_field(memory, "relation_ids")))
+        relation_ids = list(dict.fromkeys(relation_ids))
+    if not relation_types:
+        for memory in selected_memories:
+            relation_types.extend(_string_list(_fixture_field(memory, "relation_types")))
+        relation_types = list(dict.fromkeys(relation_types))
+
+    task_pack_ids = _string_list(question.get("expected_task_pack_ids"))
+    if not task_pack_ids:
+        for memory in selected_memories:
+            task_pack_ids.extend(_string_list(_fixture_field(memory, "task_pack_id")))
+        task_pack_ids = list(dict.fromkeys(task_pack_ids))
+
+    episode_ids = set(_string_list(question.get("expected_episode_ids")))
+    episode_dedup: dict[str, list[str]] = {}
+    for memory in candidates:
+        episode_id = _fixture_field(memory, "episode_id")
+        if episode_id is None or (episode_ids and str(episode_id) not in episode_ids):
+            continue
+        episode_dedup.setdefault(str(episode_id), []).append(str(memory["memory_id"]))
+    episode_dedup = {episode_id: list(dict.fromkeys(ids)) for episode_id, ids in episode_dedup.items()}
+
+    metadata = {
+        "selected_ids": selected_ids,
+        "dropped_ids": dropped_ids,
+        "trust_evidence": trust_evidence,
+        "relation_ids": list(dict.fromkeys(relation_ids)),
+        "relation_types": list(dict.fromkeys(relation_types)),
+        "evolution_decisions": _string_list(question.get("expected_evolution_decisions")),
+        "audit_event_ids": _string_list(question.get("expected_audit_event_ids")),
+        "task_pack_ids": list(dict.fromkeys(task_pack_ids)),
+        "episode_dedup": episode_dedup,
+        "context_chars": int(output.context_chars),
+        "latency_ms": round(float(output.latency_ms), 4),
+    }
+    return metadata
+
+
+def _strategy_result(
+    question: DatasetRow,
+    output: StrategyOutput,
+    memories: Sequence[DatasetRow],
+    *,
+    users: Sequence[DatasetRow] = (),
+    strategy_name: str | None = None,
+    seed: int = 0,
+) -> dict[str, Any]:
     by_id = {str(memory["memory_id"]): memory for memory in memories}
     expected_raw = {str(memory_id) for memory_id in question.get("expected_memory_ids", [])}
     replacements: dict[str, str] = {}
@@ -534,6 +651,8 @@ def _strategy_result(question: DatasetRow, output: StrategyOutput, memories: Seq
         "outcome": outcome,
     }
     row.update(output.to_dict())
+    if strategy_name == AgenticStrategy.name:
+        row.update(_agentic_metadata(question, output, memories, users, seed=seed))
     return row
 
 
@@ -594,7 +713,17 @@ def run_benchmark(
         "questions": _stable_hash(question_rows),
         "config": _stable_hash(effective_config),
     }
-    results = [_strategy_result(question, selected.run(question, memory_rows, seed=seed), memory_rows) for question in question_rows]
+    results = [
+        _strategy_result(
+            question,
+            selected.run(question, memory_rows, seed=seed),
+            memory_rows,
+            users=users_rows,
+            strategy_name=selected.name,
+            seed=seed,
+        )
+        for question in question_rows
+    ]
     report = {
         "benchmark_version": BENCHMARK_VERSION,
         "package_version": _package_version(),
@@ -630,6 +759,8 @@ def compare_benchmarks(
     memory_rows = _dataset_rows(memories, kind="memories")
     question_rows = _dataset_rows(questions, kind="questions")
     strategies = [RawHistoryStrategy(), SemanticRAGStrategy(), AlfredoStrategy()]
+    if (config or {}).get("agentic") is True:
+        strategies.append(AgenticStrategy())
     effective_config = {**(config or {}), "offline": bool(offline), "seed": int(seed), "strategies": {selected.name: _strategy_config(selected) for selected in strategies}}
     hashes = {
         "users": _stable_hash(users_rows),
@@ -640,7 +771,17 @@ def compare_benchmarks(
     results_by_strategy: dict[str, list[dict[str, Any]]] = {}
     aggregates: dict[str, dict[str, Any]] = {}
     for selected in strategies:
-        rows = [_strategy_result(question, selected.run(question, memory_rows, seed=seed), memory_rows) for question in question_rows]
+        rows = [
+            _strategy_result(
+                question,
+                selected.run(question, memory_rows, seed=seed),
+                memory_rows,
+                users=users_rows,
+                strategy_name=selected.name,
+                seed=seed,
+            )
+            for question in question_rows
+        ]
         results_by_strategy[selected.name] = rows
         aggregates[selected.name] = _aggregate(rows)
     report = {

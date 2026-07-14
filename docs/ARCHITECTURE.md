@@ -54,6 +54,14 @@ Retrieval evidence records component scores, matched signals, trust classificati
 
 The checked-in Alfredo Vault fixtures are **synthetic** benchmark data. They exercise temporal recall, supersession, explicit forgetting, abstention, and prompt-injection cases to make decisions reproducible. A synthetic benchmark is **not a security or privacy audit and is no substitute for production privacy controls**. It does not authorize storing secrets, personal data, or regulated records. Production operators must define retention, deletion, access control, encryption, backup handling, and threat-model tests for their deployment.
 
+## Structured memory and the opt-in agentic benchmark
+
+The core lifecycle stores structured memory records rather than treating a transcript as the memory itself. Typed relations (for example, `supersedes` and `supports`) connect records; evolution is proposal-first, so a candidate is evaluated and recorded as accepted or rejected before it can change durable state. Procedural records can reference task packs and their required memories, while episodic consolidation groups duplicate events into one episode view. Forgetting and trust policies remain explicit gates, and `ContextBudgetPacker` keeps the final prompt context bounded with observable selected and dropped IDs.
+
+`compare_benchmarks(..., config={"agentic": True})` adds the fourth, offline-only `alfredo-agentic` strategy. It reuses the deterministic Alfredo retrieval output and adds fixture-backed relation, evolution, audit, task-pack, episode, trust, context, and latency metadata; baseline strategies and their report keys are unchanged when the flag is absent or false. Agentic evidence is limited to explicitly synthetic users, and dataset hashes plus the seed make reports reproducible. This benchmark exercises contracts; it is not a security, privacy, authorization, retention, or production-quality audit.
+
+The relation/evolution/task-pack vocabulary has conceptual provenance in public memory-system discussions such as [MemGPT/Letta](https://github.com/cpacker/MemGPT) and [Graphiti](https://github.com/getzep/graphiti). These links are references, not endorsements or affiliations, and no external code is copied or reused.
+
 ## LLM connector boundary
 
 The standalone `LLMConnector` now uses `self.agent.search_memories(...)` in `_build_memory_context` before each LLM call. This routes context retrieval through the trust policy and `ContextBudgetPacker` facade path rather than raw `retrieval.retrieve`, so stale or untrusted candidates are excluded and the facade's selected/dropped evidence contract remains available. The connector formats the selected facade results for the prompt, then calls `self.agent.perceive(...)` after the response to store and update lifecycle state. The interactive `/search` convenience command remains a separate diagnostic path; it is not the LLM prompt-context path.
