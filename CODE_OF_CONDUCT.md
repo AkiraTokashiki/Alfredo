@@ -41,9 +41,9 @@ Maintainers must recuse themselves from a report when they are directly involved
 
 ## Reporting and appeals
 
-To report unacceptable behavior, contact the repository maintainers through a private GitHub message or a private GitHub Security Advisory when the report includes security-sensitive material. Do not open a public issue for private allegations, personal data, or exploit details. Include links, dates, witnesses, and the behavior that created concern when it is safe to do so. You may report without revealing information that would put you at risk.
+To report unacceptable behavior, open a GitHub issue at https://github.com/AkiraTokashiki/Alfredo/issues with a title beginning `[Code of Conduct]` and mention the maintainers. This channel is public and is **not confidential**: do not include personal data, private allegations, or security-sensitive details. The repository does not currently publish a confidential conduct contact. If the report is security-sensitive, use the [GitHub Security Advisory form](https://github.com/AkiraTokashiki/Alfredo/security/advisories/new) instead; that path is for vulnerabilities, not ordinary conduct reports. Maintainers can redact or remove identifying details from a public report.
 
-If you believe an enforcement decision was mistaken or disproportionate, appeal privately to the maintainers through the same channel, explain the specific decision and relevant context, and request review by a maintainer who was not the original decision-maker. An appeal does not pause a safety restriction. Retaliation for reporting or appealing is itself unacceptable.
+If you believe an enforcement decision was mistaken or disproportionate, appeal in a follow-up GitHub issue using the same `[Code of Conduct]` title convention, or ask the maintainers to continue the public discussion. Do not include sensitive information because the issue channel is not confidential. Request review by a maintainer who was not the original decision-maker. An appeal does not pause a safety restriction. Retaliation for reporting or appealing is itself unacceptable.
 
 ## Maintainer responsibilities
 
