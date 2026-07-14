@@ -42,6 +42,39 @@ calidad garantizada. La popularidad se perseguirá mediante instalación simple,
 demo inmediata, benchmark reproducible, integraciones MCP y documentación clara;
 la identidad del producto seguirá siendo memoria persistente para agentes.
 
+### Fusión de investigación con procedencia limpia
+
+Alfredo incorporará ideas generales observadas en dos referencias técnicas, sin
+copiar código, prompts, plantillas, nombres distintivos, documentación, datasets
+ni estructuras creativas:
+
+- `ai-memory-vault`: memoria externa bajo demanda, índices de orientación,
+  memoria procedimental para tareas repetitivas y consolidación episódica.
+- `A-MEM`: metadata semántica, relaciones entre memorias, expansión por vecinos y
+  evolución de memoria basada en propuestas.
+
+La implementación propia usará contratos, nombres, esquemas, tests y decisiones
+de seguridad de Alfredo. El núcleo seguirá siendo SQLite + embeddings + trust +
+forgetting + supersession + bounded context + MCP. La referencia `ai-memory-vault`
+está bajo CC BY-NC-SA 4.0 y no se incorporará material licenciado de ella en un
+producto comercial. A-MEM está bajo MIT, pero tampoco se copiará su código.
+
+La evolución será segura y auditable: un LLM o planner puede proponer metadata,
+relaciones o supersession, pero no mutará memorias directamente. `TrustPolicy`
+validará la propuesta, SQLite la aplicará transaccionalmente y Alfredo registrará
+un diff con razón, actor, confianza y memoria afectada.
+
+El resultado debe incluir progresivamente:
+
+1. metadata estructurada con fallback offline;
+2. relaciones `related_to`, `supports`, `supersedes`, `contradicts` y `derived_from`;
+3. expansión por vecinos después de filtros de namespace, lifecycle, trust y
+   context budget;
+4. `TaskMemoryPack` para procedimientos recurrentes;
+5. resúmenes episódicos y consolidación de sesiones;
+6. exportación Markdown/Obsidian opcional, sin convertirla en dependencia del
+   núcleo.
+
 ## Alcance aprobado
 
 ### README y primera impresión
@@ -169,14 +202,21 @@ La entrega se considera válida solo si se verifican todos estos escenarios:
 2. `python -m memory_agent --offline quickstart` sin API key;
 3. demo básica y demo de lifecycle;
 4. benchmark offline reproducible con fixtures comprobadas;
-5. `pytest tests/ -q` verde;
-6. `python -m build` exitoso;
-7. `twine check dist/*` exitoso;
-8. comandos del README probados en un entorno separado del checkout;
-9. CI configurada para las versiones Python soportadas;
-10. enlaces, assets, badges y comandos del README revisados;
-11. ningún documento exige configuración no declarada;
-12. el paquete publicado instala la misma API descrita en el README.
+5. relaciones persistidas y namespace-aware con tipos explícitos;
+6. propuestas de evolución validadas por trust y aplicadas transaccionalmente;
+7. audit diff con actor, razón, confianza y memorias afectadas;
+8. expansión por vecinos limitada por lifecycle, trust y context budget;
+9. `TaskMemoryPack` con fallback offline y tests de recuperación;
+10. resumen episódico y consolidación sin duplicar memorias activas;
+11. exportación Markdown opcional sin dependencia de Obsidian;
+12. `pytest tests/ -q` verde;
+13. `python -m build` exitoso;
+14. `twine check dist/*` exitoso;
+15. comandos del README probados en un entorno separado del checkout;
+16. CI configurada para las versiones Python soportadas;
+17. enlaces, assets, badges y comandos del README revisados;
+18. ningún documento exige configuración no declarada;
+19. el paquete publicado instala la misma API descrita en el README.
 
 ## Criterios de aceptación
 
@@ -186,6 +226,12 @@ La entrega se considera válida solo si se verifican todos estos escenarios:
 - El benchmark es visible, reproducible y honestamente delimitado.
 - La instalación publicada y la instalación desde checkout no divergen en el
   quickstart documentado.
+- Las memorias relacionadas, propuestas de evolución y TaskMemoryPacks se pueden
+  inspeccionar y explicar sin depender de un LLM remoto.
+- Una propuesta rechazada no cambia el estado de ninguna memoria y deja evidencia
+  suficiente para depuración.
+- El exportador Markdown es opcional, no cambia la fuente de verdad SQLite y no
+  requiere instalar Obsidian.
 - La documentación no contiene claims falsos, placeholders o badges rotos.
 - La suite existente sigue pasando después de los cambios.
 - El resultado mejora la adopción sin convertir el SDK en una plataforma fuera de
