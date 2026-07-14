@@ -56,7 +56,7 @@ The checked-in Alfredo Vault fixtures are **synthetic** benchmark data. They exe
 
 ## LLM connector boundary
 
-The lifecycle above describes the `MemoryAgent` facade, CLI, and MCP operations. The standalone `LLMConnector` currently has a separate pre-call context path: `_build_memory_context` calls `self.agent.retrieval.retrieve(...)` directly and formats raw results, so it bypasses `search_memories`, the trust policy, `ContextBudgetPacker`, and the `selected_ids`/`dropped_ids` evidence contract. Its `turn` calls `self.agent.perceive(...)` only after the LLM response to store and update lifecycle state. Do not describe the connector's current prompt context as trust-filtered or bounded by the facade; a runtime fix is required before making that claim.
+The standalone `LLMConnector` now uses `self.agent.search_memories(...)` in `_build_memory_context` before each LLM call. This routes context retrieval through the trust policy and `ContextBudgetPacker` facade path rather than raw `retrieval.retrieve`, so stale or untrusted candidates are excluded and the facade's selected/dropped evidence contract remains available. The connector formats the selected facade results for the prompt, then calls `self.agent.perceive(...)` after the response to store and update lifecycle state. The interactive `/search` convenience command remains a separate diagnostic path; it is not the LLM prompt-context path.
 
 ## Public components
 
