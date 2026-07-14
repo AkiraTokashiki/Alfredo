@@ -227,6 +227,8 @@ def test_hackathon_demo_uses_isolated_sqlite_without_remote_model(tmp_path: Path
     script = repo_root / "examples" / "demo_hackathon.py"
     env = os.environ.copy()
     env["ALFREDO_HOME"] = str(tmp_path / "alfredo-home")
+    env.pop("PYTHONUTF8", None)
+    env.pop("PYTHONIOENCODING", None)
     result = subprocess.run(
         [sys.executable, str(script)],
         cwd=repo_root,
