@@ -207,6 +207,8 @@ def test_basic_demo_runs_without_remote_model_download() -> None:
         env=env,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="strict",
         check=True,
         timeout=60,
     )
@@ -231,6 +233,8 @@ def test_hackathon_demo_uses_isolated_sqlite_without_remote_model(tmp_path: Path
         env=env,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="strict",
         check=True,
         timeout=60,
     )
