@@ -96,7 +96,7 @@ The server exposes `memory__perceive`, `memory__search`, `memory__store`, `memor
 Hermes supports both transports. The `mcp` extra is **required** for Alfredo's server, and the default `sentence-transformers` provider also needs the `semantic` extra. These commands are not offline; they need the default provider's dependencies/model, but no LLM API key is required by the MCP memory tools. Stdio is the simplest local path:
 
 ```bash
-hermes mcp add memory-agent --command python --args "-m" --args "memory_agent" --args "mcp"
+hermes mcp add memory-agent --command python --args=-m --args=memory_agent --args=mcp
 python -m memory_agent mcp
 ```
 
@@ -106,7 +106,7 @@ For HTTP, start the server in one terminal and point Hermes at the reported `/mc
 python -m memory_agent mcp --http --host localhost --port 8090
 ```
 
-Use `namespace: "tenant-a"` in each tool call to keep Hermes sessions isolated. The HTTP transport is the server's SSE mode; it prints `http://localhost:8090/mcp` when it starts.
+Use `namespace: "tenant-a"` in each tool call to keep Hermes sessions isolated. The Streamable HTTP transport serves the `/mcp` endpoint at `http://localhost:8090/mcp` when it starts.
 
 ### Claude Desktop recipe
 

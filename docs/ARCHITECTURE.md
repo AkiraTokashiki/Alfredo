@@ -68,7 +68,7 @@ The standalone `LLMConnector` now uses `self.agent.search_memories(...)` in `_bu
 | Embeddings | `src/memory_agent/core/embeddings.py`, `core/deterministic_embeddings.py` | Encodes text using configured learned or deterministic offline provider. |
 | Retrieval/context | `src/memory_agent/core/retrieval.py`, `core/context_budget.py` | Scores candidates, applies diversity, trust evidence, and selected/dropped IDs. |
 | Forgetting | `src/memory_agent/core/forgetting.py` | Applies reinforcement, decay, and archival thresholds. |
-| MCP adapter | `src/memory_agent/integrations/mcp_server.py` | Exposes facade operations over stdio or HTTP/SSE. |
+| MCP adapter | `src/memory_agent/integrations/mcp_server.py` | Exposes facade operations over stdio or Streamable HTTP at `/mcp`. |
 | Benchmark | `src/memory_agent/benchmark.py` | Runs separate synthetic fixtures and writes comparison reports. |
 
 For copyable commands and MCP client recipes, see [`INTEGRATION.md`](../INTEGRATION.md). For benchmark limitations, see [`README.md`](../README.md#benchmark-evidence).
