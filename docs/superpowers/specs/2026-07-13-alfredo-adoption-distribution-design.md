@@ -44,18 +44,22 @@ limitado. No se usarán métricas, badges o claims no verificados.
 El contrato de instalación primaria será:
 
 ```bash
-pip install memory-agent
+pip install alfredo
 python -m memory_agent --offline quickstart
 ```
 
-La primera ejecución debe funcionar sin API key, proveedor remoto ni descarga
-obligatoria de un modelo transformer. Debe usar una vault temporal, demostrar
-almacenamiento y recuperación entre turnos, mostrar evidencia básica y limpiar
-sus datos temporales. La documentación explicará cómo persistir con `--db`.
+El nombre distribuido públicamente debe ser `alfredo`; el módulo Python interno
+seguirá siendo `memory_agent` para preservar la API existente y evitar confundir
+el nombre del paquete con el import legacy. La primera ejecución debe funcionar
+sin API key, proveedor remoto ni descarga obligatoria de un modelo transformer.
+Debe usar una vault temporal, demostrar almacenamiento y recuperación entre
+turnos, mostrar evidencia básica y limpiar sus datos temporales. La documentación
+explicará cómo persistir con `--db`.
 
-La distribución debe publicar un artefacto instalable en PyPI con metadata,
+La distribución debe publicar el artefacto `alfredo` en PyPI con metadata,
 versionado y dependencias coherentes. La instalación desde checkout seguirá
 siendo válida para contributors.
+
 
 ### Demo y prueba de valor
 
@@ -136,7 +140,7 @@ Estas ideas pueden permanecer como roadmap posterior, claramente etiquetadas.
 
 La entrega se considera válida solo si se verifican todos estos escenarios:
 
-1. instalación limpia con `pip install memory-agent`;
+1. instalación limpia con `pip install alfredo`;
 2. `python -m memory_agent --offline quickstart` sin API key;
 3. demo básica y demo de lifecycle;
 4. benchmark offline reproducible con fixtures comprobadas;
