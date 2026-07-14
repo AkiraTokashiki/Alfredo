@@ -58,7 +58,8 @@ def test_documented_offline_quickstart_runs_through_cli(monkeypatch) -> None:
 
     assert result.exit_code == 0, result.output
     assert "Alfredo MemoryAgent" in result.output
-    assert "Offline quickstart" in result.output
+    assert "Alfredo MemoryAgent — offline quickstart" in result.output
+    assert "Persistent memory • timely forgetting • bounded, explainable recall" in result.output
     assert "Remembered:" in result.output
     assert agent.perceived == [
         "I prefer Python for automation",
@@ -99,6 +100,7 @@ def test_lifecycle_demo_has_stable_four_stage_output() -> None:
     assert "The user prefers: python for automation" in output[:learn_end]
     assert "recall: The user prefers: python for automation" in output[learn_end:recall_end]
     assert "consolidation=update" in output[recall_end:supersede_end]
+    assert "The user does not like: python" in output[recall_end:supersede_end]
     assert "archived=1" in output[recall_end:supersede_end]
     bounded = output[supersede_end:]
     selected_line = next(

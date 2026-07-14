@@ -112,7 +112,8 @@ def quickstart(ctx: click.Context) -> None:
         session_active = True
         result = agent.perceive("What programming language do I prefer?")
         recalled = result["recollection_text"]
-        click.echo("Alfredo MemoryAgent — Offline quickstart (deterministic embeddings)")
+        click.echo("Alfredo MemoryAgent — offline quickstart")
+        click.echo("Persistent memory • timely forgetting • bounded, explainable recall")
         if not recalled:
             raise click.ClickException(
                 "Quickstart could not recall the stored memory from SQLite"

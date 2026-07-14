@@ -56,6 +56,8 @@ def test_offline_quickstart_stores_and_recalls_without_model_or_api_key(monkeypa
     assert result.exit_code == 0, result.output
 
     assert "Alfredo MemoryAgent" in result.output
+    assert "Alfredo MemoryAgent — offline quickstart" in result.output
+    assert "Persistent memory • timely forgetting • bounded, explainable recall" in result.output
     assert "offline" in result.output.lower()
     assert "python" in result.output.lower()
     assert "remember" in result.output.lower()
