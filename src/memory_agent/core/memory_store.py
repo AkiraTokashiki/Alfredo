@@ -184,11 +184,15 @@ class MemoryStore:
 
     def _migrate_relation_table(self) -> None:
         """Upgrade legacy relation tables, dropping invalid rows and duplicates."""
-        foreign_tables = {
-            row[2]
+        foreign_keys = {
+            (row[3], row[2], row[4], row[6].upper())
             for row in self.conn.execute("PRAGMA foreign_key_list(memory_relations)")
         }
-        if {"memories"} <= foreign_tables and len(foreign_tables) >= 1:
+        required_foreign_keys = {
+            ("source_id", "memories", "id", "CASCADE"),
+            ("target_id", "memories", "id", "CASCADE"),
+        }
+        if required_foreign_keys <= foreign_keys:
             return
         self.conn.execute("DROP INDEX IF EXISTS uq_memory_relations_edge")
         self.conn.execute("DROP INDEX IF EXISTS idx_memory_relations_source")
