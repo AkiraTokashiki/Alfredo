@@ -191,6 +191,53 @@ def test_initialize_repairs_partial_relation_foreign_keys_and_cascade_delete(
         store.close()
 
 
+def test_initialize_preserves_zero_relation_confidence(tmp_path: Path) -> None:
+    """Migrating a legacy relation must not replace confidence=0.0 with its default."""
+    db_path = tmp_path / "zero-confidence-relations.db"
+    with sqlite3.connect(db_path) as connection:
+        connection.executescript(
+            """
+            CREATE TABLE memories (
+                id INTEGER PRIMARY KEY,
+                content TEXT NOT NULL,
+                memory_type TEXT NOT NULL DEFAULT 'episodic',
+                importance REAL NOT NULL DEFAULT 0.5,
+                last_accessed_at TEXT,
+                is_active INTEGER NOT NULL DEFAULT 1,
+                namespace TEXT
+            );
+            CREATE TABLE memory_relations (
+                id INTEGER PRIMARY KEY,
+                source_id INTEGER NOT NULL,
+                target_id INTEGER NOT NULL,
+                relation_type TEXT NOT NULL,
+                confidence REAL NOT NULL,
+                namespace TEXT,
+                created_at TEXT,
+                updated_at TEXT,
+                source TEXT,
+                is_active INTEGER NOT NULL,
+                FOREIGN KEY (source_id) REFERENCES memories(id) ON DELETE CASCADE
+            );
+            INSERT INTO memories (id, content, namespace)
+            VALUES (1, 'source', 'alpha'), (2, 'target', 'alpha');
+            INSERT INTO memory_relations (
+                id, source_id, target_id, relation_type, confidence,
+                namespace, created_at, updated_at, source, is_active
+            ) VALUES (1, 1, 2, 'supports', 0.0, 'alpha', NULL, NULL, 'legacy', 1);
+            """
+        )
+
+    store = MemoryStore(db_path)
+    store.initialize()
+    try:
+        relations = store.get_relations(1, namespace="alpha", active_only=True)
+        assert len(relations) == 1
+        assert relations[0].confidence == 0.0
+    finally:
+        store.close()
+
+
 def test_duplicate_source_target_type_is_idempotent_and_stored_once(
     relation_store: tuple[MemoryStore, dict[str, int]],
 ) -> None:
