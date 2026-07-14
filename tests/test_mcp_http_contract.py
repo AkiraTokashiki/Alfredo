@@ -5,7 +5,7 @@ from __future__ import annotations
 from memory_agent.integrations import mcp_server
 
 
-def test_http_startup_configures_settings_and_uses_sse_without_network(
+def test_http_startup_configures_settings_and_uses_streamable_http_without_network(
     monkeypatch,
 ) -> None:
     """HTTP startup prewarms the agent and delegates only the transport to FastMCP."""
@@ -37,7 +37,7 @@ def test_http_startup_configures_settings_and_uses_sse_without_network(
         assert settings.host == "127.0.0.1"
         assert settings.port == 9876
         assert warmed_agents == [fake_agent]
-        assert run_transports == ["sse"]
+        assert run_transports == ["streamable-http"]
 
     assert settings.host == original_host
     assert settings.port == original_port
