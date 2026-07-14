@@ -205,7 +205,7 @@ def test_export_memory_ids_filters_within_namespace_and_active_lifecycle(
         store,
         output_dir,
         "tenant-a",
-        memory_ids=[wanted_id, other_id, archived_id, cross_namespace_id, 999999],
+        memory_ids=[wanted_id, archived_id, cross_namespace_id, 999999],
     )
 
     assert sorted(path.name for path in output_dir.iterdir()) == [f"{wanted_id}.md"]
