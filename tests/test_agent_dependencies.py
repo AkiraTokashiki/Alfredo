@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import inspect
 
-from memory_agent.ports import MemoryStorePort, RetrievalPort
+from memory_agent.ports import EvolutionPlannerPort, MemoryStorePort, RetrievalPort
 
 
 def test_dependency_protocols_declare_namespace_operations() -> None:
@@ -20,6 +20,11 @@ def test_dependency_protocols_declare_namespace_operations() -> None:
         assert "namespace" in inspect.signature(method).parameters
     assert "conn" not in getattr(MemoryStorePort, "__annotations__", {})
     assert hasattr(MemoryStorePort, "commit")
+
+
+def test_evolution_planner_port_exposes_deterministic_proposal_contract() -> None:
+    parameters = inspect.signature(EvolutionPlannerPort.propose).parameters
+    assert tuple(parameters)[:4] == ("self", "candidate", "neighbors", "context")
 
 
 from memory_agent.agent.orchestrator import MemoryAgent
