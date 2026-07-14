@@ -121,8 +121,9 @@ def test_lifecycle_demo_has_stable_four_stage_output() -> None:
     assert selected_ids
     assert omitted_ids
     trust_line = next(line for line in bounded.splitlines() if line.startswith("trust evidence:"))
-    assert "trusted" in trust_line
-    assert "untrusted" in trust_line
+    trust_tokens = [token.strip() for token in trust_line.partition(":")[2].split(",")]
+    assert "trusted" in trust_tokens
+    assert "untrusted" in trust_tokens
     assert "new memories:" in output
     assert "recall:" in output
     assert "lifecycle:" in output
