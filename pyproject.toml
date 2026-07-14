@@ -3,9 +3,9 @@ requires = ["setuptools>=69.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "memory-agent"
+name = "alfredo-memory-agent"
 version = "0.2.0"
-description = "An agent with persistent memory, forgetting curves, and semantic retrieval"
+description = "An open-source MemoryAgent that learns, remembers, forgets, and explains every recall"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
@@ -13,22 +13,33 @@ authors = [{name = "Manija"}]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Operating System :: OS Independent",
 ]
 
 dependencies = [
     "numpy>=1.26",
-    "sentence-transformers>=3.0",
     "click>=8.1",
     "rich>=13.0",
 ]
+
+[project.scripts]
+alfredo = "memory_agent.cli.commands:cli"
 
 [project.optional-dependencies]
 semantic = ["sentence-transformers>=3.0"]
 mcp = ["mcp>=1.0", "httpx>=0.27"]
 llm = ["httpx>=0.27"]
 cloud = ["alibabacloud-fc20230330>=4.7.7", "alibabacloud-tea-openapi>=0.3.13"]
-all = ["sentence-transformers>=3.0", "mcp>=1.0", "httpx>=0.27", "alibabacloud-fc20230330>=4.7.7", "alibabacloud-tea-openapi>=0.3.13"]
+all = [
+    "sentence-transformers>=3.0",
+    "mcp>=1.0",
+    "httpx>=0.27",
+    "alibabacloud-fc20230330>=4.7.7",
+    "alibabacloud-tea-openapi>=0.3.13",
+]
 
 [project.urls]
 Repository = "https://github.com/AkiraTokashiki/Alfredo"
