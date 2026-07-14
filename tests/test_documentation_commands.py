@@ -138,3 +138,9 @@ def test_documented_benchmark_compare_options_create_offline_report(
     assert report["run_id"] == "local-offline"
     assert report["offline"] is True
     assert set(report["strategies"]) == {"raw-history", "semantic-rag", "alfredo"}
+
+
+def test_requirements_bootstrap_local_semantic_distribution() -> None:
+    requirements = Path(__file__).parents[1] / "requirements.txt"
+
+    assert "-e .[semantic]" in requirements.read_text(encoding="utf-8").splitlines()

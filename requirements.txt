@@ -1,1 +1,1 @@
-alfredo-memory-agent>=0.1.0
+-e .[semantic]
