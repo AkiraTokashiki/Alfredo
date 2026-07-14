@@ -122,19 +122,55 @@ class LLMConnector:
     # ------------------------------------------------------------------
 
     def _build_memory_context(self, user_input: str) -> str:
-        """Retrieve relevant memories and format them for the LLM."""
-        results = self.agent.retrieval.retrieve(user_input, top_k=5, use_mmr=True)
-        if not results:
+        """Retrieve relevant memories through the public search facade."""
+        payload = self.agent.search_memories(user_input, top_k=5)
+        if not isinstance(payload, dict):
             return ""
 
+        results = payload.get("results", [])
+        if not isinstance(results, list) or not results:
+            return ""
+
+        evidence_by_id: dict[Any, dict[str, Any]] = {}
+        for evidence in payload.get("evidence", []):
+            if isinstance(evidence, dict) and "id" in evidence:
+                evidence_by_id[evidence["id"]] = evidence
+
         lines = ["[MEMORIES]:"]
-        for r in results:
-            mem = r.memory
-            type_icon = {"episodic": "📝", "semantic": "💡", "preference": "❤️", "procedural": "🔧"}
-            icon = type_icon.get(mem.memory_type, "📌")
-            lines.append(
-                f"  {icon} [{mem.memory_type}] {mem.content} (score: {r.score:.2f})"
-            )
+        type_icon = {
+            "episodic": "📝",
+            "semantic": "💡",
+            "preference": "❤️",
+            "procedural": "🔧",
+        }
+        for result in results:
+            if not isinstance(result, dict):
+                continue
+            memory = result.get("memory", result)
+            if not isinstance(memory, dict):
+                continue
+
+            memory_type = memory.get("memory_type", memory.get("type", "memory"))
+            icon = type_icon.get(memory_type, "📌")
+            score = float(result.get("score", 0.0))
+            line = f"  {icon} [{memory_type}] {memory.get('content', '')} (score: {score:.2f})"
+
+            evidence = result.get("evidence")
+            if not isinstance(evidence, dict):
+                evidence = evidence_by_id.get(result.get("id", memory.get("id")), {})
+            trust = evidence.get("trust")
+            reason = evidence.get("reason")
+            if trust or reason:
+                details = []
+                if trust:
+                    details.append(f"trust: {trust}")
+                if reason:
+                    details.append(f"reason: {reason}")
+                line += f" ({'; '.join(details)})"
+            lines.append(line)
+
+        if len(lines) == 1:
+            return ""
         lines.append("[/MEMORIES]")
         return "\n".join(lines)
 
