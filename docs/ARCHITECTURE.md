@@ -44,7 +44,7 @@ Stored vectors carry provider/model and dimension metadata. Before cosine simila
 
 ## Namespace isolation
 
-`namespace` is applied to sessions, memories, embeddings, retrieval, statistics, reinforcement, supersession, and forget operations. `None` is an explicit unscoped value; it does not mean “all namespaces.” Callers that represent users or tenants should pass a stable namespace on every operation and enforce their own authentication and authorization before invoking the SDK or exposing MCP.
+`namespace` is applied to sessions, memories, embeddings, retrieval, statistics, reinforcement, supersession, and forget operations. When the facade has an active session, `namespace=None` resolves to that active `self.namespace`; it is an explicit unscoped value only when no active namespace exists, such as after an MCP session reset. It never means “all namespaces.” Callers that represent users or tenants should pass a stable namespace on every operation and enforce their own authentication and authorization before invoking the SDK or exposing MCP.
 
 Namespace filtering is an application boundary, not a complete security boundary: a process with filesystem access to the SQLite vault can inspect or alter other namespaces. Use separate database files and OS-level permissions when stronger isolation is required.
 
