@@ -242,7 +242,8 @@ class MemoryStore:
             key = (source_id, target_id, relation_type, row_namespace)
             if key not in deduped:
                 deduped[key] = (
-                    source_id, target_id, relation_type, row["confidence"] or 1.0,
+                    source_id, target_id, relation_type,
+                    row["confidence"] if row["confidence"] is not None else 1.0,
                     row_namespace, row["created_at"], row["updated_at"], row["source"],
                     row["is_active"] if row["is_active"] is not None else 1,
                 )

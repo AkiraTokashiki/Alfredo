@@ -14,7 +14,10 @@ from pathlib import Path
 
 import pytest
 
+from memory_agent.core.config import RetrievalConfig
+from memory_agent.core.deterministic_embeddings import DeterministicEmbeddingEngine
 from memory_agent.core.memory_store import MemoryStore
+from memory_agent.core.retrieval import RetrievalEngine
 from memory_agent.models import MemoryRecord, MemoryRelation
 
 
@@ -261,6 +264,62 @@ def test_relations_are_namespace_scoped_for_queries_and_targets(
                 namespace="alpha",
             )
         )
+
+def test_retrieve_related_uses_anchor_namespace_when_namespace_is_unset(
+    tmp_path: Path,
+) -> None:
+    """Related expansion follows an anchor's namespace without cross-tenant leakage."""
+    store = MemoryStore(tmp_path / "retrieval-relations.db")
+    store.initialize()
+    embeddings = DeterministicEmbeddingEngine(dimension=32)
+
+    try:
+        def add_memory(content: str, namespace: str) -> int:
+            memory = MemoryRecord(
+                content=content,
+                namespace=namespace,
+                confidence=0.9,
+            )
+            memory_id = store.add_memory(memory, namespace=namespace)
+            store.save_embedding(
+                memory_id,
+                embeddings.encode(content),
+                embeddings.model_name,
+                namespace=namespace,
+            )
+            return memory_id
+
+        anchor_id = add_memory("anchor memory for retrieval", "tenant-a")
+        neighbor_id = add_memory("related tenant-a memory", "tenant-a")
+        tenant_b_id = add_memory("tenant-b control memory", "tenant-b")
+        relation = _relation(anchor_id, neighbor_id, namespace="tenant-a")
+        store.add_relation(relation)
+
+        engine = RetrievalEngine(
+            store,
+            embeddings,
+            RetrievalConfig(top_k=1, candidate_k=1, min_score=0.0),
+        )
+        results = engine.retrieve(
+            "anchor memory for retrieval",
+            namespace=None,
+            include_related=True,
+            use_mmr=False,
+            record_access=False,
+        )
+
+        result_ids = [result.memory.id for result in results]
+        assert result_ids[0] == anchor_id
+        assert neighbor_id in result_ids
+        assert tenant_b_id not in result_ids
+
+        related = next(result for result in results if result.memory.id == neighbor_id)
+        assert related.relation_evidence
+        assert related.relation_evidence[0]["relation_id"] == relation.id
+        assert related.relation_evidence[0]["namespace"] == "tenant-a"
+        assert related.relation_evidence[0]["via_memory_id"] == anchor_id
+    finally:
+        store.close()
 
 
 
