@@ -191,9 +191,9 @@ def test_export_is_read_only_and_repeated_bytes_are_identical(
 def test_export_memory_ids_filters_within_namespace_and_active_lifecycle(
     store: MemoryStore, tmp_path: Path
 ) -> None:
-    """Explicit IDs select only active records owned by the requested namespace."""
+    """Explicit IDs select active records only within the requested namespace."""
     wanted_id = _add(store, "Wanted", confidence=0.83)
-    other_id = _add(store, "Not selected", confidence=0.82)
+    other_id = _add(store, "Also selected", confidence=0.82)
     archived_id = _add(store, "Archived", confidence=0.81)
     store.archive_memory(archived_id, namespace="tenant-a", reason="expired")
     cross_namespace_id = _add(
@@ -205,8 +205,12 @@ def test_export_memory_ids_filters_within_namespace_and_active_lifecycle(
         store,
         output_dir,
         "tenant-a",
-        memory_ids=[wanted_id, archived_id, cross_namespace_id, 999999],
+        memory_ids=[wanted_id, other_id, archived_id, cross_namespace_id, 999999],
     )
 
-    assert sorted(path.name for path in output_dir.iterdir()) == [f"{wanted_id}.md"]
+    assert sorted(path.name for path in output_dir.iterdir()) == [
+        f"{wanted_id}.md",
+        f"{other_id}.md",
+    ]
     assert "Wanted" in (output_dir / f"{wanted_id}.md").read_text(encoding="utf-8")
+    assert "Also selected" in (output_dir / f"{other_id}.md").read_text(encoding="utf-8")
