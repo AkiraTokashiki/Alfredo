@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import tempfile
+from pathlib import Path
 
 from memory_agent.agent.orchestrator import MemoryAgent
-from memory_agent.core.paths import resolve_memory_home
+from memory_agent.core.config import MemoryAgentConfig
+from memory_agent.core.deterministic_embeddings import DeterministicEmbeddingEngine
 from memory_agent.models import MemoryRecord
 
 
-DB_PATH = resolve_memory_home() / "hackathon_demo.db"
 
 
 def print_turn(title: str, result: dict) -> None:
@@ -23,51 +25,61 @@ def print_turn(title: str, result: dict) -> None:
 
 
 def main() -> None:
-    DB_PATH.unlink(missing_ok=True)
-    agent = None
-    try:
-        print("Alfredo MemoryAgent — Hackathon Demo")
-        agent = MemoryAgent(db_path=DB_PATH)
-
-        agent.init_session("session 1")
-        print_turn(
-            "Session 1: learn preferences",
-            agent.perceive("I like Python and I prefer concise answers"),
-        )
-        agent.end_session()
-
-        agent.init_session("session 2")
-        print_turn("Session 2: recall preference", agent.perceive("What language do I like?"))
-        agent.end_session()
-
-        agent.init_session("session 3")
-        print_turn("Session 3: update stale preference", agent.perceive("I do not like Python"))
-        agent.end_session()
-
-        agent.init_session("session 4")
-        for idx in range(20):
-            agent.store_memory(
-                MemoryRecord(content=f"low-importance noise {idx}", importance=0.1)
-            )
-        print_turn(
-            "Session 4: bounded recall after noise",
-            agent.perceive("What do you remember about my preferences?"),
-        )
-
-        stats = agent.get_stats()
-        print("\n=== Stats ===")
-        print(f"active: {stats['total_active']}")
-        print(f"archived: {stats['archived']}")
-        print(f"types: {stats['type_distribution']}")
-    finally:
+    with tempfile.TemporaryDirectory(prefix="alfredo-hackathon-") as temp_dir:
+        db_path = Path(temp_dir) / "hackathon_demo.db"
+        agent = None
         try:
-            if agent is not None:
-                try:
-                    agent.end_session()
-                finally:
-                    agent.close()
+            print("Alfredo MemoryAgent — Hackathon Demo")
+            config = MemoryAgentConfig.default()
+            config.embedding.provider = "deterministic"
+            agent = MemoryAgent(
+                config=config,
+                db_path=db_path,
+                embedder=DeterministicEmbeddingEngine(
+                    dimension=config.embedding.dimension,
+                    cache_size=config.embedding.cache_size,
+                ),
+            )
+
+            agent.init_session("session 1")
+            print_turn(
+                "Session 1: learn preferences",
+                agent.perceive("I like Python and I prefer concise answers"),
+            )
+            agent.end_session()
+
+            agent.init_session("session 2")
+            print_turn("Session 2: recall preference", agent.perceive("What language do I like?"))
+            agent.end_session()
+
+            agent.init_session("session 3")
+            print_turn("Session 3: update stale preference", agent.perceive("I do not like Python"))
+            agent.end_session()
+
+            agent.init_session("session 4")
+            for idx in range(20):
+                agent.store_memory(
+                    MemoryRecord(content=f"low-importance noise {idx}", importance=0.1)
+                )
+            print_turn(
+                "Session 4: bounded recall after noise",
+                agent.perceive("What do you remember about my preferences?"),
+            )
+
+            stats = agent.get_stats()
+            print("\n=== Stats ===")
+            print(f"active: {stats['total_active']}")
+            print(f"archived: {stats['archived']}")
+            print(f"types: {stats['type_distribution']}")
         finally:
-            DB_PATH.unlink(missing_ok=True)
+            try:
+                if agent is not None:
+                    try:
+                        agent.end_session()
+                    finally:
+                        agent.close()
+            finally:
+                db_path.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":

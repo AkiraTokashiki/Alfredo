@@ -76,6 +76,8 @@ def test_lifecycle_demo_has_stable_four_stage_output() -> None:
         timeout=60,
     )
 
+    assert result.returncode == 0
+    assert result.stderr == ""
     output = result.stdout
     markers = [
         "[1] learn preference",
@@ -86,11 +88,22 @@ def test_lifecycle_demo_has_stable_four_stage_output() -> None:
     positions = [output.index(marker) for marker in markers]
     assert positions == sorted(positions)
     assert all(output.count(marker) == 1 for marker in markers)
+
+    learn_end = output.index(markers[1])
+    recall_end = output.index(markers[2])
+    supersede_end = output.index(markers[3])
+    assert "The user prefers: python for automation" in output[:learn_end]
+    assert "recall: The user prefers: python for automation" in output[learn_end:recall_end]
+    assert "consolidation=update" in output[recall_end:supersede_end]
+    assert "archived=1" in output[recall_end:supersede_end]
+    bounded = output[supersede_end:]
+    assert "packet selected: ids=[" in bounded
+    assert "packet omitted: ids=[" in bounded
+    assert "trusted" in bounded
+    assert "untrusted" in bounded
     assert "new memories:" in output
     assert "recall:" in output
     assert "lifecycle:" in output
-    assert "packet selected:" in output
-    assert "packet omitted:" in output
     assert "created_at" not in output
 
 

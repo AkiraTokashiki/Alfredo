@@ -5,6 +5,8 @@ import tempfile
 from pathlib import Path
 
 from memory_agent.agent.orchestrator import MemoryAgent
+from memory_agent.core.config import MemoryAgentConfig
+from memory_agent.core.deterministic_embeddings import DeterministicEmbeddingEngine
 
 
 def main():
@@ -18,7 +20,16 @@ def main():
 
     agent = None
     try:
-        agent = MemoryAgent(db_path=db_path)
+        config = MemoryAgentConfig.default()
+        config.embedding.provider = "deterministic"
+        agent = MemoryAgent(
+            config=config,
+            db_path=db_path,
+            embedder=DeterministicEmbeddingEngine(
+                dimension=config.embedding.dimension,
+                cache_size=config.embedding.cache_size,
+            ),
+        )
         agent.init_session("basic-demo")
 
         interactions = [

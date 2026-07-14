@@ -9,6 +9,7 @@ without network access, model downloads, API keys, or wall-clock output.
 from __future__ import annotations
 
 import tempfile
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -33,10 +34,12 @@ def _packet_line(result: dict[str, Any]) -> None:
         print("packet selected: [none]")
         print("packet omitted: [none]")
         return
+    selected_ids = [item.memory.id for item in packet.selected]
+    omitted_ids = [item.memory.id for item in packet.omitted]
     selected = _contents([item.memory for item in packet.selected])
     omitted = _contents([item.memory for item in packet.omitted])
-    print(f"packet selected: {selected}")
-    print(f"packet omitted: {omitted}")
+    print(f"packet selected: ids={selected_ids}; {selected}")
+    print(f"packet omitted: ids={omitted_ids}; {omitted}")
 
 
 def _evidence_line(result: dict[str, Any]) -> None:
@@ -69,31 +72,40 @@ def main() -> None:
 
     with tempfile.TemporaryDirectory(prefix="alfredo-lifecycle-") as temp_dir:
         db_path = Path(temp_dir) / "lifecycle.db"
-        agent = MemoryAgent(
-            config=config,
-            db_path=db_path,
-            embedder=DeterministicEmbeddingEngine(
-                dimension=config.embedding.dimension,
-                cache_size=config.embedding.cache_size,
-            ),
-        )
+        agent = None
+        active_session = False
         try:
+            agent = MemoryAgent(
+                config=config,
+                db_path=db_path,
+                embedder=DeterministicEmbeddingEngine(
+                    dimension=config.embedding.dimension,
+                    cache_size=config.embedding.cache_size,
+                ),
+            )
             agent.init_session("learn preference")
+            active_session = True
             print("[1] learn preference")
             _show_result(agent.perceive("I prefer Python for automation"))
             agent.end_session()
+            active_session = False
 
             agent.init_session("recall across session")
+            active_session = True
             print("[2] recall across session")
             _show_result(agent.perceive("What programming language do I prefer?"))
             agent.end_session()
+            active_session = False
 
             agent.init_session("supersede stale preference")
+            active_session = True
             print("[3] supersede stale preference")
             _show_result(agent.perceive("I do not like Python"))
             agent.end_session()
+            active_session = False
 
             agent.init_session("bounded context and trust evidence")
+            active_session = True
             agent.store_memory(
                 MemoryRecord(
                     content="Trusted preference: concise Python automation answers",
@@ -124,8 +136,25 @@ def main() -> None:
             print("[4] bounded context and trust evidence")
             _show_result(agent.perceive("What do you remember about my preferences?"))
             agent.end_session()
+            active_session = False
         finally:
-            agent.close()
+            primary_active = sys.exc_info()[0] is not None
+            cleanup_error: BaseException | None = None
+
+            def run_cleanup(action) -> None:
+                nonlocal cleanup_error
+                try:
+                    action()
+                except BaseException as exc:
+                    if cleanup_error is None:
+                        cleanup_error = exc
+
+            if agent is not None and active_session:
+                run_cleanup(agent.end_session)
+            if agent is not None:
+                run_cleanup(agent.close)
+            if not primary_active and cleanup_error is not None:
+                raise cleanup_error
 
 
 if __name__ == "__main__":

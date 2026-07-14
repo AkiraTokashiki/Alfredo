@@ -53,6 +53,7 @@ def test_offline_quickstart_stores_and_recalls_without_model_or_api_key(monkeypa
     runner = CliRunner()
 
     result = runner.invoke(cli, ["--offline", "quickstart"])
+    assert result.exit_code == 0, result.output
 
     assert "Alfredo MemoryAgent" in result.output
     assert "offline" in result.output.lower()
