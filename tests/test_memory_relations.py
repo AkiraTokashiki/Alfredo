@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import math
+import sqlite3
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -125,6 +126,66 @@ def test_relation_persists_with_all_public_fields_after_store_reopen(
         assert persisted.is_active is True
     finally:
         reopened.close()
+
+
+def test_initialize_repairs_partial_relation_foreign_keys_and_cascade_delete(
+    tmp_path: Path,
+) -> None:
+    """Legacy source-only FK schemas gain target cascades during initialization."""
+    db_path = tmp_path / "partial-relations.db"
+    with sqlite3.connect(db_path) as connection:
+        connection.execute("PRAGMA foreign_keys = ON")
+        connection.executescript(
+            """
+            CREATE TABLE memories (
+                id INTEGER PRIMARY KEY,
+                content TEXT NOT NULL,
+                memory_type TEXT NOT NULL DEFAULT 'episodic',
+                importance REAL NOT NULL DEFAULT 0.5,
+                last_accessed_at TEXT,
+                is_active INTEGER NOT NULL DEFAULT 1,
+                namespace TEXT
+            );
+            CREATE TABLE memory_relations (
+                id INTEGER PRIMARY KEY,
+                source_id INTEGER NOT NULL,
+                target_id INTEGER NOT NULL,
+                relation_type TEXT NOT NULL,
+                confidence REAL NOT NULL,
+                namespace TEXT,
+                created_at TEXT,
+                updated_at TEXT,
+                source TEXT,
+                is_active INTEGER NOT NULL,
+                FOREIGN KEY (source_id) REFERENCES memories(id) ON DELETE CASCADE
+            );
+            INSERT INTO memories (id, content, namespace)
+            VALUES (1, 'source', 'alpha'), (2, 'target', 'alpha');
+            INSERT INTO memory_relations (
+                id, source_id, target_id, relation_type, confidence,
+                namespace, created_at, updated_at, source, is_active
+            ) VALUES (1, 1, 2, 'supports', 1.0, 'alpha', NULL, NULL, 'legacy', 1);
+            """
+        )
+
+    store = MemoryStore(db_path)
+    store.initialize()
+    try:
+        foreign_keys = {
+            row["from"]: (row["table"], row["on_delete"])
+            for row in store.conn.execute("PRAGMA foreign_key_list(memory_relations)")
+        }
+        assert foreign_keys == {
+            "source_id": ("memories", "CASCADE"),
+            "target_id": ("memories", "CASCADE"),
+        }
+
+        store.delete_memory(2, hard=True, namespace="alpha")
+        assert store.conn.execute(
+            "SELECT COUNT(*) FROM memory_relations WHERE id = 1"
+        ).fetchone()[0] == 0
+    finally:
+        store.close()
 
 
 def test_duplicate_source_target_type_is_idempotent_and_stored_once(
