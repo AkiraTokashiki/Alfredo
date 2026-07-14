@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 )
 @click.pass_context
 def cli(ctx: click.Context, db: str | None, model: str | None, offline: bool) -> None:
-    """MemoryAgent — persistent memory for AI agents.
+    """Alfredo MemoryAgent — persistent memory for AI agents.
 
     An agent that accumulates experience autonomously, remembers
     user preferences, and retrieves critical memories within
@@ -88,7 +88,7 @@ def _get_agent(ctx: click.Context) -> MemoryAgent:
 @cli.command()
 @click.pass_context
 def quickstart(ctx: click.Context) -> None:
-    """Run a temporary SQLite cross-turn recall without external services."""
+    """Run Alfredo MemoryAgent's offline SQLite cross-turn recall demo."""
     config = ctx.obj["config"]
     if config.embedding.provider != "deterministic":
         raise click.UsageError("quickstart requires the explicit --offline option")
@@ -112,7 +112,7 @@ def quickstart(ctx: click.Context) -> None:
         session_active = True
         result = agent.perceive("What programming language do I prefer?")
         recalled = result["recollection_text"]
-        click.echo("Offline quickstart (deterministic embeddings)")
+        click.echo("Alfredo MemoryAgent — Offline quickstart (deterministic embeddings)")
         if not recalled:
             raise click.ClickException(
                 "Quickstart could not recall the stored memory from SQLite"

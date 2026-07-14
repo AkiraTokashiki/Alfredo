@@ -24,40 +24,50 @@ def print_turn(title: str, result: dict) -> None:
 
 def main() -> None:
     DB_PATH.unlink(missing_ok=True)
-    agent = MemoryAgent(db_path=DB_PATH)
+    agent = None
+    try:
+        print("Alfredo MemoryAgent — Hackathon Demo")
+        agent = MemoryAgent(db_path=DB_PATH)
 
-    agent.init_session("session 1")
-    print_turn(
-        "Session 1: learn preferences",
-        agent.perceive("I like Python and I prefer concise answers"),
-    )
-    agent.end_session()
-
-    agent.init_session("session 2")
-    print_turn("Session 2: recall preference", agent.perceive("What language do I like?"))
-    agent.end_session()
-
-    agent.init_session("session 3")
-    print_turn("Session 3: update stale preference", agent.perceive("I do not like Python"))
-    agent.end_session()
-
-    agent.init_session("session 4")
-    for idx in range(20):
-        agent.store_memory(
-            MemoryRecord(content=f"low-importance noise {idx}", importance=0.1)
+        agent.init_session("session 1")
+        print_turn(
+            "Session 1: learn preferences",
+            agent.perceive("I like Python and I prefer concise answers"),
         )
-    print_turn(
-        "Session 4: bounded recall after noise",
-        agent.perceive("What do you remember about my preferences?"),
-    )
+        agent.end_session()
 
-    stats = agent.get_stats()
-    print("\n=== Stats ===")
-    print(f"active: {stats['total_active']}")
-    print(f"archived: {stats['archived']}")
-    print(f"types: {stats['type_distribution']}")
+        agent.init_session("session 2")
+        print_turn("Session 2: recall preference", agent.perceive("What language do I like?"))
+        agent.end_session()
 
-    agent.close()
+        agent.init_session("session 3")
+        print_turn("Session 3: update stale preference", agent.perceive("I do not like Python"))
+        agent.end_session()
+
+        agent.init_session("session 4")
+        for idx in range(20):
+            agent.store_memory(
+                MemoryRecord(content=f"low-importance noise {idx}", importance=0.1)
+            )
+        print_turn(
+            "Session 4: bounded recall after noise",
+            agent.perceive("What do you remember about my preferences?"),
+        )
+
+        stats = agent.get_stats()
+        print("\n=== Stats ===")
+        print(f"active: {stats['total_active']}")
+        print(f"archived: {stats['archived']}")
+        print(f"types: {stats['type_distribution']}")
+    finally:
+        try:
+            if agent is not None:
+                try:
+                    agent.end_session()
+                finally:
+                    agent.close()
+        finally:
+            DB_PATH.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":

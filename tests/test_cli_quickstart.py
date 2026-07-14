@@ -54,10 +54,29 @@ def test_offline_quickstart_stores_and_recalls_without_model_or_api_key(monkeypa
 
     result = runner.invoke(cli, ["--offline", "quickstart"])
 
-    assert result.exit_code == 0, result.output
+    assert "Alfredo MemoryAgent" in result.output
     assert "offline" in result.output.lower()
     assert "python" in result.output.lower()
     assert "remember" in result.output.lower()
+
+
+def test_quickstart_requires_explicit_offline() -> None:
+    result = CliRunner().invoke(cli, ["quickstart"])
+
+    assert result.exit_code != 0
+    assert "requires the explicit --offline option" in result.output
+
+
+def test_quickstart_cleans_implicit_temporary_sqlite(monkeypatch) -> None:
+    monkeypatch.setitem(sys.modules, "sentence_transformers", None)
+
+    result = CliRunner().invoke(cli, ["--offline", "quickstart"])
+
+    assert result.exit_code == 0, result.output
+    vault_line = next(
+        line for line in result.output.splitlines() if line.startswith("SQLite vault: ")
+    )
+    assert not Path(vault_line.removeprefix("SQLite vault: ")).exists()
 
 
 def test_quickstart_fails_when_sqlite_recall_is_empty(monkeypatch) -> None:

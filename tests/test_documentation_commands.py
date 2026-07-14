@@ -1,8 +1,8 @@
 """Smoke tests for commands documented as the public offline entry points."""
 
-from __future__ import annotations
-
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -53,6 +53,7 @@ def test_documented_offline_quickstart_runs_through_cli(monkeypatch) -> None:
     result = CliRunner().invoke(cli, ["--offline", "quickstart"])
 
     assert result.exit_code == 0, result.output
+    assert "Alfredo MemoryAgent" in result.output
     assert "Offline quickstart" in result.output
     assert "Remembered:" in result.output
     assert agent.perceived == [
@@ -60,6 +61,37 @@ def test_documented_offline_quickstart_runs_through_cli(monkeypatch) -> None:
         "What programming language do I prefer?",
     ]
     assert agent.store.closed is True
+
+
+def test_lifecycle_demo_has_stable_four_stage_output() -> None:
+    repo_root = Path(__file__).parents[1]
+    script = repo_root / "examples" / "demo_lifecycle.py"
+
+    result = subprocess.run(
+        [sys.executable, str(script)],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=60,
+    )
+
+    output = result.stdout
+    markers = [
+        "[1] learn preference",
+        "[2] recall across session",
+        "[3] supersede stale preference",
+        "[4] bounded context and trust evidence",
+    ]
+    positions = [output.index(marker) for marker in markers]
+    assert positions == sorted(positions)
+    assert all(output.count(marker) == 1 for marker in markers)
+    assert "new memories:" in output
+    assert "recall:" in output
+    assert "lifecycle:" in output
+    assert "packet selected:" in output
+    assert "packet omitted:" in output
+    assert "created_at" not in output
 
 
 def test_documented_benchmark_compare_options_create_offline_report(
