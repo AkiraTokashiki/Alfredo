@@ -308,11 +308,20 @@ class MemoryAgent:
         self.state.current_context = [r.memory for r in recollections]
         self.state.total_memories = self.store.count_memories(namespace=active_namespace)
         context_str = self._format_context(recollections)
-        evidence = [
-            result.evidence
-            for result in (recall_packet.selected + recall_packet.omitted if recall_packet else [])
-            if result.evidence is not None
-        ]
+        evidence = []
+        for result in (
+            recall_packet.selected + recall_packet.omitted if recall_packet else []
+        ):
+            if result.evidence is None:
+                continue
+            if result.relation_evidence:
+                evidence_payload = result.evidence.to_dict()
+                evidence_payload["relation_evidence"] = result.to_dict()[
+                    "relation_evidence"
+                ]
+                evidence.append(evidence_payload)
+            else:
+                evidence.append(result.evidence)
         lifecycle = {
             "namespace": active_namespace,
             "user_id": active_user_id,
