@@ -257,11 +257,17 @@ class RetrievalEngine:
         for anchor in base_results:
             if anchor.memory.id is None:
                 continue
-            relations = list(get_relations(anchor.memory.id, namespace=namespace, active_only=True))
+            anchor_namespace = anchor.memory.namespace
+            relation_namespace = namespace if namespace is not None else anchor_namespace
+            relations = list(
+                get_relations(anchor.memory.id, namespace=relation_namespace, active_only=True)
+            )
             relations.extend(
                 relation
                 for relation in get_relations(
-                    namespace=namespace, target_id=anchor.memory.id, active_only=True
+                    namespace=relation_namespace,
+                    target_id=anchor.memory.id,
+                    active_only=True,
                 )
                 if relation.source_id != anchor.memory.id
             )
@@ -273,11 +279,16 @@ class RetrievalEngine:
                 )
                 if neighbor_id in seen:
                     continue
-                neighbor = get_memory(neighbor_id, namespace=namespace)
-                if neighbor is None or not neighbor.is_active or neighbor.namespace != namespace:
+                neighbor = get_memory(neighbor_id, namespace=relation_namespace)
+                if (
+                    neighbor is None
+                    or not neighbor.is_active
+                    or neighbor.namespace != anchor_namespace
+                    or (namespace is not None and neighbor.namespace != namespace)
+                ):
                     continue
                 result = self.combined_score(
-                    neighbor, query_vec, namespace=namespace, min_score=0.0
+                    neighbor, query_vec, namespace=relation_namespace, min_score=0.0
                 )
                 result.relation_evidence = ({
                     "relation_id": relation.id,
