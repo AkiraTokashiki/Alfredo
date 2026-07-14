@@ -188,21 +188,55 @@ class LLMConnector:
     # ------------------------------------------------------------------
 
     def _call_llm(self, messages: list[dict[str, str]]) -> str:
-        """Call the LLM API and return the response text."""
+        """Call the configured LLM API and return the response text."""
+        if self.provider == "anthropic":
+            system_content = [
+                message["content"]
+                for message in messages
+                if message.get("role") == "system"
+            ]
+            anthropic_messages = [
+                message for message in messages if message.get("role") != "system"
+            ]
+            headers = {
+                "x-api-key": self.api_key,
+                "anthropic-version": "2023-06-01",
+                "Content-Type": "application/json",
+            }
+            body = {
+                "model": self.model,
+                "messages": anthropic_messages,
+                "temperature": 0.7,
+                "max_tokens": 2048,
+            }
+            if system_content:
+                body["system"] = "\n\n".join(system_content)
+
+            resp = self.http.post(
+                f"{self.base_url.rstrip('/')}/messages",
+                headers=headers,
+                json=body,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return data["content"][0]["text"]
+
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
-
         body = {
             "model": self.model,
             "messages": messages,
             "temperature": 0.7,
             "max_tokens": 2048,
         }
+        base_url = self.base_url.rstrip("/")
+        if not base_url.endswith("/v1"):
+            base_url += "/v1"
 
         resp = self.http.post(
-            f"{self.base_url}/v1/chat/completions",
+            f"{base_url}/chat/completions",
             headers=headers,
             json=body,
         )
