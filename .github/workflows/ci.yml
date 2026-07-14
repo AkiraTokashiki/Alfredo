@@ -1,0 +1,83 @@
+name: CI
+
+"on":
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  offline-tests:
+    name: Offline tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.11"
+          - "3.12"
+          - "3.13"
+          - "3.14"
+    env:
+      ALFREDO_OFFLINE: "1"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install the minimal project
+        run: python -m pip install -e .
+      - name: Install test runner
+        run: python -m pip install pytest
+      - name: Run focused offline and documentation tests
+        run: >-
+          python -m pytest
+          tests/test_cli_quickstart.py
+          tests/test_deterministic_embeddings.py
+          tests/test_documentation_commands.py
+          -q
+
+  full-suite:
+    name: Full test suite
+    runs-on: ubuntu-latest
+    env:
+      ALFREDO_OFFLINE: "1"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install the minimal project
+        run: python -m pip install -e .
+      - name: Install test runner
+        run: python -m pip install pytest
+      - name: Run the complete test suite
+        run: python -m pytest tests/ -q
+
+  package:
+    name: Build and validate package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install packaging tools
+        run: python -m pip install build twine
+      - name: Build distributions
+        run: python -m build
+      - name: Check distribution metadata
+        run: python -m twine check dist/*

@@ -1,0 +1,80 @@
+name: Bug report
+description: Report a reproducible problem in Alfredo MemoryAgent
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Alfredo. Please remove sensitive data from examples before submitting.
+  - type: input
+    id: alfredo-version
+    attributes:
+      label: Alfredo version
+      description: Which package version or commit are you using?
+      placeholder: 0.2.0 or a commit SHA
+    validations:
+      required: true
+  - type: input
+    id: python-version
+    attributes:
+      label: Python version
+      placeholder: Python 3.12.4
+    validations:
+      required: true
+  - type: input
+    id: operating-system
+    attributes:
+      label: Operating system
+      placeholder: Ubuntu 24.04, macOS 15, or Windows 11
+    validations:
+      required: true
+  - type: input
+    id: provider
+    attributes:
+      label: Provider and adapter
+      description: Identify the configured embedding, storage, or model provider; use local/offline when applicable.
+      placeholder: local offline provider
+    validations:
+      required: true
+  - type: input
+    id: namespace
+    attributes:
+      label: Namespace
+      description: Which MemoryAgent namespace or tenant reproduces the issue?
+      placeholder: team/project namespace
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Give the smallest deterministic example, including commands and sanitized inputs.
+      placeholder: |
+        1. Configure ...
+        2. Run ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected-lifecycle
+    attributes:
+      label: Expected lifecycle behavior
+      description: What should happen across remember, recall, update, and forget operations?
+    validations:
+      required: true
+  - type: textarea
+    id: actual-lifecycle
+    attributes:
+      label: Actual or observed lifecycle behavior
+      description: What happened instead? Include errors, selected memories, and relevant timestamps if available.
+    validations:
+      required: true
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add logs, traces, or a minimal repository link after removing credentials and personal data.
+    validations:
+      required: false

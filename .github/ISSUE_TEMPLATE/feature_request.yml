@@ -1,0 +1,61 @@
+name: Feature request
+description: Propose an improvement to Alfredo MemoryAgent
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the user problem and the contract the MemoryAgent must preserve. Do not include private memories or credentials.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem, need, or motivation
+      description: What user problem or need would this solve, and why does it matter?
+    validations:
+      required: true
+  - type: textarea
+    id: memoryagent-contract
+    attributes:
+      label: MemoryAgent contract
+      description: State the observable inputs, outputs, lifecycle guarantees, and trust or privacy invariants that must remain true.
+      placeholder: |
+        Given ... the MemoryAgent should ... while preserving ...
+    validations:
+      required: true
+  - type: checkboxes
+    id: affected-surfaces
+    attributes:
+      label: Affected MemoryAgent surfaces
+      description: Select every area affected by this request.
+      options:
+        - label: Storage and persistence
+        - label: Retrieval and ranking
+        - label: Trust, safety, or provenance
+        - label: Forgetting, retention, or supersession
+        - label: Context assembly or lifecycle
+        - label: Provider or external integration
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed solution
+      description: Describe the feature or request, including an example of the intended behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and workarounds considered
+      description: What alternative solutions, workarounds, or designs did you consider?
+    validations:
+      required: true
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Include sanitized examples, links, or prior art that clarifies the request.
+    validations:
+      required: false
