@@ -23,19 +23,18 @@ SQLite is local-first: `MemoryStore` persists memories, sessions, embeddings, na
 
 ## Real lifecycle
 
-One `perceive(...)` call performs the following ordered lifecycle. The names describe implementation responsibilities, not an external workflow promise:
+One `perceive(...)` call performs the following **perceive turn stages** in this implementation order. Context packing is a conceptual stage in the same turn, not a separate persistence transaction:
 
-1. **Perceive** — accept input, optional response, and an explicit `namespace`/`user_id`; update session state without treating a namespace as a wildcard.
-2. **Extract** — identify candidate preferences, facts, habits, and forget requests from the input. Candidate records inherit the active namespace and provenance metadata.
-3. **Validate / trust** — consolidate candidates and evaluate retrieval evidence through the trust policy. Confidence and policy reasons are attached before a candidate can enter context; unknown or untrusted records can be omitted.
-4. **Store** — persist accepted memories, embeddings, and interaction summaries in SQLite. A single cycle commits through the store after its decisions are complete.
-5. **Retrieve** — search active records in the active namespace using the configured embedding and ranking signals (semantic score, recency, importance, strength, and diversity).
-6. **Pack context** — apply the context budget to trusted retrieval results. The `RecallPacket` exposes `selected_ids`, `dropped_ids`, omitted records, reasons, and bounded context accounting rather than copying the vault into a prompt.
-7. **Reinforce** — selected memories receive a strength boost and are updated in the same namespace.
-8. **Supersede** — consolidation detects a matching or contradictory candidate and archives/replaces the previous record when the configured decision says the new record supersedes it. The prior record remains inspectable as archived state.
-9. **Decay / archive** — the forgetting curve updates active strengths at the configured interval; records below the archival threshold are archived. An explicit `forget_memory` request archives the matching record immediately and is separate from time-based decay.
+1. **Perceive / session scope** — accept input, optional response, and an explicit `namespace`/`user_id`; update session state without treating a namespace as a wildcard.
+2. **Extract and consolidate** — check for an explicit forget query first and archive matching records in the active namespace. Then extract candidate preferences, facts, and habits, validate their shape, and consolidate them. A matching or contradictory candidate can **supersede** an older record here; the old record is archived, while an accepted new candidate is stored and indexed in SQLite before retrieval.
+3. **Retrieve** — search active records in the active namespace using the configured embedding and ranking signals (semantic score, recency, importance, strength, and diversity).
+4. **Validate / trust** — evaluate each retrieved candidate through the trust policy and attach confidence classification, evidence, and a reason. Unknown or untrusted records can be omitted before they enter context.
+5. **Pack context (conceptual)** — `ContextBudgetPacker` applies the bounded context budget to trusted results. Its `RecallPacket` exposes `selected_ids`, `dropped_ids`, omitted records, reasons, and accounting rather than copying the vault into a prompt; this is an in-memory representation for the current turn.
+6. **Reinforce** — selected memories receive a strength boost and are updated in the same namespace.
+7. **Store the interaction** — when the input/response meets the remember policy, store an episodic interaction summary and link it to the active session.
+8. **Decay / archive** — at the configured interval, apply the forgetting curve to active strengths and archive records below the archival threshold. An explicit `forget_memory`/`memory__forget` operation archives one record immediately and is separate from time-based decay.
 
-The returned dictionary contains `recollections`, `recollection_text`, `recall_packet`, `evidence`, consolidation decisions, archive counts, and a `lifecycle` object with namespace and decay/archive status. Search and MCP responses similarly expose evidence and selected/dropped IDs.
+The store commits the turn after these decisions complete. The returned dictionary contains `recollections`, `recollection_text`, `recall_packet`, `evidence`, consolidation decisions, archive counts, and a `lifecycle` object with namespace and decay/archive status. Search and MCP responses similarly expose evidence and selected/dropped IDs.
 
 ## Embedding and provider guards
 
