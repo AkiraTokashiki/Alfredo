@@ -378,12 +378,182 @@ Expected: all existing and new tests pass. Remove temporary virtual environments
 
 Check that `git status --short` contains no generated artifacts, README commands match the wheel-tested commands, package names are consistent, and the release workflow is tag-ready. Do not commit benchmark output or credentials.
 
+### Task 7: Add persistent typed memory relations
+
+**Files:**
+- Modify: `src/memory_agent/models.py`
+- Modify: `src/memory_agent/core/memory_store.py`
+- Create: `src/memory_agent/core/relations.py`
+- Modify: `src/memory_agent/core/retrieval.py`
+- Modify: `src/memory_agent/agent/orchestrator.py`
+- Create: `tests/test_memory_relations.py`
+- Modify: `tests/test_namespace_isolation.py`
+
+- [ ] **Step 1: Write failing relation and migration tests**
+
+Add tests for a JSON-safe `MemoryRelation` with relation types `related_to`, `supports`, `supersedes`, `contradicts`, and `derived_from`. Test that relations persist across a reopened SQLite store, are unique per source/target/type, and cannot cross namespaces. Test deactivating a superseded relation removes it from active graph expansion without deleting audit history.
+
+- [ ] **Step 2: Run the focused tests**
+
+```bash
+python -m pytest tests/test_memory_relations.py tests/test_namespace_isolation.py -q
+```
+
+Expected: FAIL because no relation model, table, migration, or public store methods exist.
+
+- [ ] **Step 3: Implement the relation layer**
+
+Add a `memory_relations` SQLite table with `source_id`, `target_id`, `relation_type`, `confidence`, `namespace`, `created_at`, `updated_at`, `source`, and `is_active`, plus uniqueness and foreign-key-safe indexes. Add idempotent migration support. Implement `add_relation`, `get_relations`, and `deactivate_relation` through `MemoryStore` and a small `RelationManager` that rejects unknown relation types, cross-namespace targets, self-links, non-finite confidence, and missing memories. Preserve SQLite as the source of truth. Extend retrieval to request related candidates only after namespace/lifecycle filters and keep relation evidence on each result; do not change the existing weighted ranking unless the relation candidate passes trust and context-budget rules.
+
+- [ ] **Step 4: Run focused tests and commit**
+
+```bash
+python -m pytest tests/test_memory_relations.py tests/test_namespace_isolation.py tests/test_retrieval.py -q
+git add src/memory_agent/models.py src/memory_agent/core/memory_store.py src/memory_agent/core/relations.py src/memory_agent/core/retrieval.py src/memory_agent/agent/orchestrator.py tests/test_memory_relations.py tests/test_namespace_isolation.py
+git commit -m "feat: add typed namespace-aware memory relations"
+```
+
+### Task 8: Add auditable evolution proposals and lifecycle events
+
+**Files:**
+- Create: `src/memory_agent/core/evolution.py`
+- Modify: `src/memory_agent/models.py`
+- Modify: `src/memory_agent/core/memory_store.py`
+- Modify: `src/memory_agent/agent/orchestrator.py`
+- Modify: `src/memory_agent/ports.py`
+- Create: `tests/test_memory_evolution.py`
+- Modify: `tests/test_agent_dependencies.py`
+
+- [ ] **Step 1: Write failing proposal and audit tests**
+
+Test `EvolutionProposal` and `EvolutionDecision` serialization. Assert an accepted proposal can add a relation, supersede a memory, update metadata, and write one audit event atomically. Assert a proposal with an unknown relation, wrong namespace, archived target, untrusted evidence, or invalid confidence is rejected and leaves every memory and relation unchanged. Assert a rejected proposal still records a reason without storing secrets or raw prompt content.
+
+- [ ] **Step 2: Run focused tests**
+
+```bash
+python -m pytest tests/test_memory_evolution.py tests/test_agent_dependencies.py -q
+```
+
+Expected: FAIL because evolution proposals, audit events, and planner ports do not exist.
+
+- [ ] **Step 3: Implement proposal-first evolution**
+
+Define `EvolutionPlannerPort.propose(candidate, neighbors, context)` and an offline deterministic planner that emits no mutation when evidence is insufficient. Define `EvolutionProposal` with candidate ID, target IDs, action, relation type, metadata patch, confidence, actor, reason, and namespace. Implement `MemoryStore.apply_evolution(proposal)` as one transaction that validates namespace, active state, allowed fields, and trust evidence before changing records. Add a `memory_events` table for accepted/rejected decisions with event type, actor, reason, evidence IDs, and timestamp. Give the orchestrator an explicit `evolve_memory` path; an optional remote LLM may propose JSON later, but no LLM call may bypass validation or commit directly.
+
+- [ ] **Step 4: Run focused tests and commit**
+
+```bash
+python -m pytest tests/test_memory_evolution.py tests/test_agent_dependencies.py tests/test_memory_store.py -q
+git add src/memory_agent/core/evolution.py src/memory_agent/models.py src/memory_agent/core/memory_store.py src/memory_agent/agent/orchestrator.py src/memory_agent/ports.py tests/test_memory_evolution.py tests/test_agent_dependencies.py
+git commit -m "feat: add auditable memory evolution proposals"
+```
+
+### Task 9: Add procedural TaskMemoryPacks and episodic consolidation
+
+**Files:**
+- Create: `src/memory_agent/core/task_memory.py`
+- Create: `src/memory_agent/core/episodes.py`
+- Modify: `src/memory_agent/models.py`
+- Modify: `src/memory_agent/agent/orchestrator.py`
+- Modify: `src/memory_agent/core/context_budget.py`
+- Create: `tests/test_task_memory.py`
+- Create: `tests/test_episodic_consolidation.py`
+
+- [ ] **Step 1: Write failing procedural and episode tests**
+
+Test a `TaskMemoryPack` with task name, triggers, instructions, constraints, required memory IDs, successful examples, confidence, and namespace. Test that task retrieval returns only the caller namespace, filters stale/superseded items, and respects the existing context budget. Test session events consolidate into one deterministic `EpisodeSummary` without duplicating already-consolidated memories.
+
+- [ ] **Step 2: Run focused tests**
+
+```bash
+python -m pytest tests/test_task_memory.py tests/test_episodic_consolidation.py -q
+```
+
+Expected: FAIL because procedural packs and episode summaries do not exist.
+
+- [ ] **Step 3: Implement bounded procedural and episodic memory**
+
+Implement `TaskMemoryPackStore` on top of existing `MemoryRecord`/SQLite primitives rather than creating a second database. Use `memory_type="procedural"` and explicit metadata keys for triggers, constraints, and required IDs. Add `build_task_context(task, query, namespace)` that retrieves the pack, validates trust/lifecycle, expands only required related memories, and sends the resulting records through `ContextBudgetPacker`. Add `EpisodeSummaryBuilder` with a deterministic offline summary based on session events and an optional LLM adapter that returns a proposal, never a direct write. Persist an idempotency key per session so repeated close/reopen cannot create duplicate summaries.
+
+- [ ] **Step 4: Run focused tests and commit**
+
+```bash
+python -m pytest tests/test_task_memory.py tests/test_episodic_consolidation.py tests/test_context_budget.py -q
+git add src/memory_agent/core/task_memory.py src/memory_agent/core/episodes.py src/memory_agent/models.py src/memory_agent/agent/orchestrator.py src/memory_agent/core/context_budget.py tests/test_task_memory.py tests/test_episodic_consolidation.py
+git commit -m "feat: add procedural task packs and episodic memory"
+```
+
+### Task 10: Add optional Markdown/Obsidian export with independent schema
+
+**Files:**
+- Create: `src/memory_agent/integrations/markdown_export.py`
+- Modify: `src/memory_agent/cli/commands.py`
+- Modify: `INTEGRATION.md`
+- Modify: `README.md`
+- Create: `tests/test_markdown_export.py`
+- Create: `docs/PROVENANCE.md`
+
+- [ ] **Step 1: Write failing export and provenance tests**
+
+Test that export writes only selected active memories for a namespace, includes Alfredo-owned frontmatter (`memory_id`, `memory_type`, `confidence`, `lifecycle`, `namespace`, and `updated_at`), escapes Markdown content safely, and never exports another namespace. Test that export is read-only by default and that repeated export is deterministic. Test that `docs/PROVENANCE.md` names both external references, their licenses, the clean-room rule, and the files that were not copied.
+
+- [ ] **Step 2: Run focused tests**
+
+```bash
+python -m pytest tests/test_markdown_export.py -q
+```
+
+Expected: FAIL because no exporter or provenance record exists.
+
+- [ ] **Step 3: Implement one-way human-readable export**
+
+Implement `export_markdown(store, output_dir, namespace, memory_ids=None)` as a one-way projection from SQLite. Use Alfredo-specific filenames and frontmatter; do not use `VAULT-INDEX.md`, `CLAUDE.md`, `MEMORY.md`, the external repository’s folder names, or copied instructional text. Add an explicit CLI command such as `alfredo export-markdown --db ... --namespace ... --output ...`. Do not add bidirectional sync or make Obsidian a runtime dependency. Document that SQLite remains the source of truth and exported Markdown is inspectable/shareable output.
+
+- [ ] **Step 4: Run focused tests and commit**
+
+```bash
+python -m pytest tests/test_markdown_export.py tests/test_cli_commands.py -q
+git add src/memory_agent/integrations/markdown_export.py src/memory_agent/cli/commands.py INTEGRATION.md README.md tests/test_markdown_export.py docs/PROVENANCE.md
+git commit -m "feat: add independent Markdown memory export"
+```
+
+### Task 11: Extend benchmark and documentation for agentic evolution
+
+**Files:**
+- Modify: `src/memory_agent/benchmark.py`
+- Modify: `tests/test_benchmark.py`
+- Create: `tests/test_benchmark_agentic_memory.py`
+- Modify: `README.md`
+- Modify: `docs/ARCHITECTURE.md`
+- Modify: `ROADMAP.md`
+
+- [ ] **Step 1: Add failing benchmark cases**
+
+Add synthetic cases for relation-aware retrieval, accepted/rejected evolution proposals, contradiction supersession, procedural task recall, episodic deduplication, namespace isolation, and bounded context. Assert reports include relation IDs/types, evolution decisions, audit event IDs, task-pack IDs, selected/dropped IDs, and latency/context metrics.
+
+- [ ] **Step 2: Implement benchmark reporting without weakening existing baselines**
+
+Extend the report schema while preserving `raw-history`, `semantic-RAG`, and `alfredo`. Add a fourth `alfredo-agentic` strategy only when the new relation/evolution path is explicitly enabled. Keep fixtures synthetic, hashes deterministic, and offline execution free of API keys. Do not claim that this benchmark proves real-world privacy or universal accuracy.
+
+- [ ] **Step 3: Document the fusion honestly**
+
+Add an architecture section explaining that Alfredo combines structured memory, typed relations, proposal-first evolution, procedural task packs, episodic consolidation, forgetting, trust, and bounded context. Mention the two research references only in the provenance/research section; do not imply endorsement, code reuse, or compatibility with their files.
+
+- [ ] **Step 4: Run benchmark/documentation tests and commit**
+
+```bash
+python -m pytest tests/test_benchmark.py tests/test_benchmark_agentic_memory.py tests/test_readme_contract.py tests/test_documentation_commands.py -q
+git add src/memory_agent/benchmark.py tests/test_benchmark.py tests/test_benchmark_agentic_memory.py README.md docs/ARCHITECTURE.md ROADMAP.md
+git commit -m "feat: benchmark agentic memory evolution"
+```
+
 ---
 
 ## Plan self-review
 
-- **Spec coverage:** README hero/visual/demo is covered by Task 3; one-line install and PyPI metadata by Tasks 1 and 6; offline quickstart and lifecycle by Task 2; benchmark proof and limitations by Tasks 3 and 6; integrations/security/community by Task 4; CI/release by Task 5; full validation by Task 6. Dashboard, SaaS, billing, hosted storage, and TypeScript remain explicitly out of scope.
+- **Spec coverage:** README hero/visual/demo is covered by Task 3; one-line install and PyPI metadata by Tasks 1 and 6; offline quickstart and lifecycle by Task 2; benchmark proof and limitations by Tasks 3, 6, and 11; integrations/security/community by Task 4; CI/release by Task 5; typed relations by Task 7; proposal-first evolution and audit events by Task 8; TaskMemoryPacks and episodes by Task 9; independent Markdown export and provenance by Task 10. Dashboard, SaaS, billing, hosted storage, bidirectional Obsidian sync, and full TypeScript SDK remain out of scope.
 - **Collision handling:** the plan uses `alfredo-memory-agent`, because `alfredo` and `memory-agent` are already occupied on PyPI by unrelated projects. The brand remains Alfredo and the import remains `memory_agent`.
-- **No placeholders:** every task names exact files, commands, expected outcomes, and commit boundaries. No generated asset, badge, or external service is assumed to exist without a validation step.
-- **Type/API consistency:** the console script targets the existing `memory_agent.cli.commands:cli`; runtime imports remain `memory_agent`; the README and integration docs use the same commands; offline mode remains explicit.
-- **Risk control:** moving `sentence-transformers` to an optional extra is included only with focused installation/quickstart tests, preventing the visual adoption work from silently breaking semantic provider behavior.
+- **Provenance safety:** the plan uses general ideas from the CC BY-NC-SA `ai-memory-vault` and MIT A-MEM references without copying code, prompts, templates, names, datasets, documentation, or distinctive structure. `docs/PROVENANCE.md` records this boundary.
+- **No direct mutation:** LLM/planner output is a proposal only; trust validation, namespace checks, transaction boundaries, and audit events are required before evolution changes state.
+- **Type/API consistency:** the console script targets the existing `memory_agent.cli.commands:cli`; runtime imports remain `memory_agent`; relation/evolution/task/export APIs are layered on existing MemoryStore and ContextBudgetPacker; offline mode remains explicit.
+- **Risk control:** moving `sentence-transformers` to an optional extra and adding graph/evolution behavior are covered by focused tests before full-suite verification; SQLite remains the source of truth and Markdown export is one-way.
