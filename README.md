@@ -71,6 +71,30 @@ The demo covers cross-session recall, preference supersession, and bounded trust
 
 The comparison is about responsibilities, not a claim that one strategy wins every workload. Alfredo can be embedded through the protocols in the SDK and can also expose an MCP server; it is not a hosted memory SaaS.
 
+## Agentic memory primitives
+
+Alfredo now exposes the higher-level primitives needed to build memory workflows without replacing the SQLite core:
+
+- **Typed relations** — `MemoryRelation` edges such as `supports`, `supersedes`, and `contradicts` are namespace-aware, lifecycle-aware, auditable, and safe to expand only after trust and context-budget checks.
+- **Proposal-first evolution** — `EvolutionProposal` and `EvolutionDecision` let a deterministic or remote planner suggest metadata changes, supersession, and relations. `MemoryStore.apply_evolution()` validates the proposal and commits accepted mutations plus one audit event atomically; rejected proposals are recorded without storing raw prompts or secrets.
+- **Procedural task packs** — `TaskMemoryPackStore` persists task-specific triggers, instructions, constraints, required memory IDs, and examples using `memory_type="procedural"`. `build_task_context()` keeps task recall namespace-scoped and bounded.
+- **Episodic consolidation** — `EpisodeSummaryBuilder` creates deterministic summaries from session events, while `consolidate_session()` uses an idempotency key so reopening a store cannot duplicate a session summary.
+
+The public SDK exports these building blocks from `memory_agent`, including `MemoryRelation`, `EvolutionProposal`, `EvolutionDecision`, `TaskMemoryPack`, `TaskMemoryPackStore`, `EpisodeSummary`, and `build_task_context`. They remain local SQLite operations; planner output is never a direct state mutation.
+
+## Inspectable Markdown export
+
+SQLite remains the source of truth, but active memories can be projected into deterministic, human-readable Markdown files without adding an Obsidian runtime dependency:
+
+```bash
+alfredo --db .alfredo/memory.db export-markdown \
+  --namespace tenant-a \
+  --output .alfredo/markdown/tenant-a
+```
+
+The exporter writes one Alfredo-owned `<memory_id>.md` file per active memory in the requested namespace, with stable frontmatter for identity, type, confidence, lifecycle, namespace, and update time. Export is read-only, repeatable, and never crosses namespace boundaries. See [`docs/PROVENANCE.md`](docs/PROVENANCE.md) for the clean-room and attribution boundary.
+
+
 ## Architecture in brief
 
 ```text
@@ -81,10 +105,12 @@ MemoryAgent orchestrator ──► extraction/consolidation ──► namespace-
     │                                  │                           │
     │                                  └─ reinforce/supersede/forget┘
     ▼
-retrieval ──► trust policy + evidence ──► bounded recall packet
-    │                                        (selected_ids, dropped_ids)
+retrieval ──► typed relations + trust policy + evidence ──► bounded recall packet
+    │                                                        (selected_ids, dropped_ids)
     ▼
 agent context / response
+    │
+    └─► proposal-first evolution / procedural task packs / episodic consolidation
 ```
 
 The offline embedding engine is deterministic. The optional semantic provider is selected explicitly. Storage, embedding, retrieval, and trust boundaries are injectable through the SDK ports, while `INTEGRATION.md` documents the CLI, MCP, and Python entry points.
@@ -110,6 +136,7 @@ python -m memory_agent --offline benchmark compare --users benchmarks/alfredos_v
 - [Lifecycle demo](examples/demo_lifecycle.py) — a deterministic four-stage adoption path.
 - [MCP and Python integration](INTEGRATION.md) — stdio/HTTP server setup, namespaces, evidence, and providers.
 - [Benchmark fixtures and reports](benchmarks/alfredos_vault/) — synthetic inputs and generated outputs.
+- [Provenance and export boundary](docs/PROVENANCE.md) — Markdown projection, licenses, and clean-room notes.
 - [License](LICENSE) — MIT terms for this repository.
 - [Security policy](SECURITY.md) — security reporting and deployment guidance.
 - [Contributing](CONTRIBUTING.md) — development and review workflow.
